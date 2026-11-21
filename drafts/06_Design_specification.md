@@ -82,7 +82,7 @@ uses Claude:
   not for: anything else
 ```
 
-- **Only for the purposes listed.** A Claude call for any other purpose is refused in code. The purposes are a short fixed list: `answers`, `compile`, `try`, `label`, `summary`.
+- **Only for the purposes listed.** A Claude call for any other purpose is refused in code. The purposes are a short fixed list: `answers`, `compile`, `try`, `label`, `summary`, `daemon`.
 - **Every call goes in the ledger.** The kernel writes a record of each call, so we can always say **when**, **where** and **why** Claude was used:
 
 | Field | What it holds |
@@ -105,7 +105,11 @@ An agent can have small neural nets of its own, trained outside Claude ("exogeno
 - **When it is unsure, Claude decides.** `used when: sure above 0.9; otherwise ask Claude`. Each time this happens it goes in the ledger as the *why*.
 - **One description, two trainers.** The same net description builds a `NetChain` in Wolfram and a `torch.nn` model in Python. Trained weights move between the two as ONNX.
 
-## 7. What the design promises
+## 7. Daemons
+
+**Daemons** are processes that watch CCN's systems or run at set times, and invoke an agent or some software when something needs doing. Each daemon is **attached** to one or more components of CCN's systems (a kernel, an app, a page, a repo, a cloud path) or to a whole system, and it may act only on what it is attached to. One kind, the **update daemon**, updates specific components or whole systems on a schedule. Daemons are written in the same language, sit only in CCN's layers, and go live with changes only with the owner's approval. File 9 covers them (for discussion).
+
+## 8. What the design promises
 
 1. A script means the same thing on both targets, and the compiled policy is the same file.
 2. What must hold is enforced in code (file 3). Code steps, own nets and Claude all work inside that.

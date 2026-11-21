@@ -12,6 +12,8 @@
 8. **Code steps and the Python target.** The Python reader and compiler, with golden files checked by both readers; then the Python host, which calls Claude only through the kernel (file 7).
 9. **The first own net: the topic gate**, trained in both Wolfram and Python from one description. First check that a net trained in PyTorch imports and runs in Wolfram. It is used live only after its scores are in a compile report and you approve it (file 8).
 
-Steps 1 and 2 need only your comments on these drafts. Step 3 changes the live assistant, so it waits for your go-ahead and a test round. Steps 7 to 9 follow step 3, and step 9 also waits for question 9.
+10. **Daemons** (file 9, for discussion): first describe CCN's systems as components; then a watch daemon on the kernels, which only reads and tells; then the update daemon, which deploys to a trial path and waits for your approval before anything goes live.
+
+Steps 1 and 2 need only your comments on these drafts. Step 3 changes the live assistant, so it waits for your go-ahead and a test round. Steps 7 to 10 follow step 3. Step 9 also waits for question 9, and step 10 for our discussion of file 9.
 
 © Computational Classnotes · CC BY-NC-SA 4.0

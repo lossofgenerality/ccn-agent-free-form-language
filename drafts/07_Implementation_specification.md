@@ -11,6 +11,11 @@ agents/                      the scripts (if they live here: question 7 in file 
   ccn-base.agent
   eye-witness.agent
   tutu-cat.agent
+daemons/                     daemon scripts, CCN only (file 9)
+  kernel-watch.agent
+  weekly-update.agent
+systems/                     CCN's systems and their components, which daemons attach to
+  eye-witness.agent
 compiler/
   AgentScript.wl             Wolfram: read, merge layers, compile, report
   agent_script/              Python: the same reader and compiler
@@ -107,6 +112,7 @@ This is one APIFunction, deployed like `CameraKernel`, with the same key check o
 | `net` | kernel, Python host | runs an own net on one input |
 | `train` | owner only | trains or retrains an own net in Wolfram |
 | `ledger` | owner only | reads the ledger: totals by agent, purpose, page and day |
+| `daemon` | owner only | lists the daemons on each component, their last runs, and approvals waiting (file 9) |
 
 Keys live in private Cloud objects (`<Agent>/apikey`, `<Agent>/secret`, as with `EyeWitness/…` today), never in a script, repo or page. Compiled policies, nets and the ledger sit next to the scripts under the master path. That path is `freeform/ff/eyewitness/` for eye-witness; a shared path for all agents is still to be agreed.
 

@@ -14,5 +14,6 @@
 10. **Where the Python target runs.** Vercel, as with the CCN Action Gateway, or somewhere else?
 11. **The first own net.** The topic gate is proposed (it saves Claude calls on off-topic questions). Or would you rather start with the line reader, the language's own net for the compiler?
 12. **One master path for all agents.** Eye-witness uses `freeform/ff/eyewitness/`. Should the other agents sit beside it (for example `freeform/ff/agents/<agent>/`)?
+13. **Daemons** (file 9). How should CCN's systems be divided into components, and which should get daemons first? May any small, reversible change go live without your approval? Who is on the `tell:` list, and should alerts come by email, in admin, or both?
 
 © Computational Classnotes · CC BY-NC-SA 4.0
