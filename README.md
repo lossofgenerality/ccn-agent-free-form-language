@@ -13,6 +13,11 @@ Drafts for comment, in `drafts/`:
 3. `03_How_a_script_is_compiled_and_enforced.md`
 4. `04_Plan_of_work.md`
 5. `05_Questions_for_you.md`
+6. `06_Design_specification.md`: spoken lines, Wolfram and Python code steps, the two targets, `uses Claude:` and the ledger (when, where and why)
+7. `07_Implementation_specification.md`: the reader, the compiler, `AgentKernel` and its modes, the Python host, tests
+8. `08_The_agents_own_neural_nets.md`: small nets trained outside Claude, in Wolfram and in Python, exchanged as ONNX
+
+The kernel pattern (modes, keys kept in the cloud, a settings block first) is taken from CCN Composite Eye.
 
 Files are updated in place; git keeps the history.
 
