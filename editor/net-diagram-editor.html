@@ -34,6 +34,7 @@ textarea{font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;min-height:2
 .err{color:#b91c1c;font-size:12.5px;margin-top:4px;white-space:pre-wrap}
 .warn{color:#a16207;font-size:12.5px;margin-top:4px;white-space:pre-wrap}
 .okline{color:var(--ok);font-size:12.5px;margin-top:4px}
+.toolbar select{width:auto;font-size:13px;padding:5px 8px}
 body.lang-python .wl-only{display:none}body:not(.lang-python) .py-only{display:none}
 .stat{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:12.5px;margin-top:6px}
 .stat b{font-weight:600}
@@ -73,6 +74,15 @@ svg:hover .port{opacity:.9}
       <button data-add="dropout" title="Dropout (version B only in this issue)">+ Dropout</button>
       <button data-add="concat" title="Joins two or more branches side by side (version B only)">+ Join</button>
       <button data-add="softmax" title="The output: one unit per class, softmax">+ Softmax</button>
+      <select id="addSeq" title="Elements for sequence nets: transformers, as in tensor-algebra-nets">
+        <option value="">+ Sequence element…</option>
+        <option value="tokens">Tokens (input)</option><option value="numbers">Numbers per token (input)</option>
+        <option value="embed">Embedding</option><option value="project">Per-token layer</option><option value="add">Add</option>
+        <option value="encoder">Encoder</option><option value="decoder">Decoder</option>
+        <option value="pick">Pick a position</option><option value="pool">Pool</option>
+        <option value="seqsoftmax">Softmax per token (output)</option><option value="possoftmax">Softmax over positions (output)</option>
+        <option value="regression">Regression (output)</option>
+      </select>
       <span class="sep"></span>
       <button id="bDel">Delete</button>
       <button id="bUndo">Undo</button>
@@ -83,7 +93,7 @@ svg:hover .port{opacity:.9}
       <button id="bSave">Save</button>
       <button id="bLoad">Open</button>
       <input type="file" id="file" accept=".json,application/json" hidden>
-      <button id="bExample" title="Draw SubjectNet, the net in nets/SubjectNet.nb">Example: SubjectNet</button>
+      <select id="exSel" title="Open an example"><option value="">Examples\u2026</option></select>
     </div>
     <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
       <g id="world"><g id="gw"></g><g id="gn"></g><path id="temp" class="temp" d=""/></g>
@@ -155,13 +165,14 @@ svg:hover .port{opacity:.9}
 const NetCore = (() => {
   const FEATURE_KEYS = ['Own', 'Verb', 'After', 'Prev', 'Join'];
   const FEATURE_LABEL = {Own:'Own words', Verb:'Verb', After:'Words after', Prev:'Words before', Join:'Joining word'};
-  const ACTS = ['ReLU', 'Tanh', 'Sigmoid', 'None'];
-  const ins = n => n.kind === 'hash' || n.kind === 'concat' ? n.nIn : n.kind === 'feature' ? 0 : 1;
-  const outs = n => n.kind === 'softmax' ? 0 : 1;
+  const ACTS = ['ReLU', 'GELU', 'Tanh', 'Sigmoid', 'None'];
+  const ins = n => n.kind === 'hash' || n.kind === 'concat' || n.kind === 'add' ? n.nIn : n.kind === 'decoder' ? 2 : ['feature', 'tokens', 'numbers'].includes(n.kind) ? 0 : 1;
+  const outs = n => ['softmax', 'seqsoftmax', 'possoftmax', 'regression'].includes(n.kind) ? 0 : 1;
   const classesOf = n => String(n.classes || '').split(',').map(s => s.trim()).filter(Boolean);
 
   /* Read the drawing as a net. Returns {errors, warnings, spec}. */
   function compile(D) {
+    if (isSeq(D)) return compileSeq(D);
     const errors = [], warnings = [];
     const byId = Object.fromEntries(D.nodes.map(n => [n.id, n]));
     const inWires = id => D.wires.filter(w => w.to.node === id).sort((a, b) => a.to.port - b.to.port);
@@ -234,13 +245,15 @@ const NetCore = (() => {
     return {errors, warnings, spec:{input, graph, chain, classes, params}};
   }
   const describe = n => ({feature:`Feature “${FEATURE_LABEL[n.key] || n.key}”`, hash:'Hash', slots:'Slots', dense:`Layer (${n.units} ${n.act})`,
-    dropout:`Dropout ${n.rate}`, concat:'Join', softmax:'Softmax'})[n.kind] || n.kind;
+    dropout:`Dropout ${n.rate}`, concat:'Join', softmax:'Softmax', tokens:`Tokens \u201c${n.name}\u201d`, numbers:`Numbers \u201c${n.name}\u201d`, embed:'Embedding',
+    project:'Per-token layer', add:'Add', encoder:'Encoder', decoder:'Decoder', seqsoftmax:'Softmax per token', pick:'Pick', pool:'Pool',
+    possoftmax:'Softmax over positions', regression:'Regression'})[n.kind] || n.kind;
 
   /* ---------- Wolfram text ---------- */
   const wlStr = s => '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
   const wlNum = x => { const s = String(+x); return /e/.test(s) ? s.replace(/e([+-]?\d+)/, ' 10.^$1').replace(/^(\S+) /, '$1*') : (s.includes('.') ? s : s + '.'); };
   const wlInt = x => String(Math.round(+x));
-  const actLayer = {ReLU:'Ramp', Tanh:'Tanh', Sigmoid:'LogisticSigmoid', None:null};
+  const actLayer = {ReLU:'Ramp', GELU:'ElementwiseLayer["GELU"]', Tanh:'Tanh', Sigmoid:'LogisticSigmoid', None:null};
   const FEATURE_WL = {
     Own:'If[own === {}, {"own:none"}, Join[("o:" <> #) & /@ own, {"oL:" <> Last[own]}]]',
     Prev:'If[own === {}, If[prev === {}, {"prev:none"}, ("p:" <> #) & /@ Take[prev, -Min[4, Length[prev]]]], {}]',
@@ -261,6 +274,7 @@ const NetCore = (() => {
 
   /* The notebook's cells: [style, text] */
   function cells(D, spec, set) {
+    if (spec.seq) return seqCells(D, spec, set);
     const C = [], add = (style, text) => C.push([style, text]);
     const s = spec, dim = s.input.dim, own = set.data === 'own', hashed = s.input.type === 'hashed';
     const doA = set.versionA && s.chain, doB = set.versionB;
@@ -361,8 +375,8 @@ const NetCore = (() => {
     return C;
   }
 
-  const GENERIC_A = `actF = <|"ReLU" -> (# UnitStep[#] &), "Tanh" -> Tanh, "Sigmoid" -> LogisticSigmoid, "None" -> Identity|>;
-actD = <|"ReLU" -> (UnitStep[#1] &), "Tanh" -> (1 - #2^2 &), "Sigmoid" -> (#2 (1 - #2) &), "None" -> (1. &)|>;
+  const GENERIC_A = `actF = <|"ReLU" -> (# UnitStep[#] &), "GELU" -> (# (1 + Erf[#/Sqrt[2.]])/2 &), "Tanh" -> Tanh, "Sigmoid" -> LogisticSigmoid, "None" -> Identity|>;
+actD = <|"ReLU" -> (UnitStep[#1] &), "GELU" -> ((1 + Erf[#1/Sqrt[2.]])/2 + #1 Exp[-#1^2/2]/Sqrt[2. Pi] &), "Tanh" -> (1 - #2^2 &), "Sigmoid" -> (#2 (1 - #2) &), "None" -> (1. &)|>;
 addRow[m_, b_] := m + ConstantArray[b, Length[m]];
 softmaxRows[z_] := With[{e = Exp[z - Max /@ z]}, e/Total[e, {2}]];
 
@@ -437,6 +451,315 @@ gradientCheckGen[] := Module[{sz = Join[{10}, ConstantArray[4, Length[actsA]], {
   const notebook = C => '(* Content-type: application/vnd.wolfram.mathematica *)\n\nNotebook[{\n' + C.map(([st, t]) => `Cell[${nbStr(t)}, "${st}"]`).join(',\n\n') + '\n}]\n';
   const plain = C => C.map(([st, t]) => st === 'Code' ? t : st === 'Section' ? `(* ---------- ${t} ---------- *)` : `(* ${t} *)`).join('\n\n');
 
+  /* ================= Sequence nets: tokens, embeddings, encoders, decoders (as in tensor-algebra-nets) ================= */
+  const SEQ_KINDS = ['tokens', 'numbers', 'embed', 'project', 'add', 'encoder', 'decoder', 'seqsoftmax', 'pick', 'pool', 'possoftmax', 'regression'];
+  const SMALL_ONLY = ['feature', 'hash', 'slots', 'concat', 'dropout'];
+  const OUT_KINDS = ['softmax', 'seqsoftmax', 'possoftmax', 'regression'];
+  const isSeq = D => D.nodes.some(n => SEQ_KINDS.includes(n.kind));
+  const seqActs = ['ReLU', 'GELU', 'Tanh', 'Sigmoid', 'None'];
+  const outName = n => String(n.name || ({softmax:'Class', seqsoftmax:'Probabilities', possoftmax:'Node', regression:'Estimate'})[n.kind] || 'Out').replace(/[^\w]/g, '') || 'Out';
+
+  function compileSeq(D) {
+    const errors = [], warnings = [];
+    const byId = Object.fromEntries(D.nodes.map(n => [n.id, n]));
+    const inWires = id => D.wires.filter(w => w.to.node === id).sort((a, b) => a.to.port - b.to.port);
+    const outputs = D.nodes.filter(n => OUT_KINDS.includes(n.kind));
+    if (!outputs.length) { errors.push('Add an output: Softmax per token, Softmax (classes), Softmax over positions or Regression.'); return {errors, warnings}; }
+    if (D.nodes.some(n => SMALL_ONLY.includes(n.kind)))
+      errors.push('Feature, Hash, Slots, Join and Dropout belong to the small nets. A net with Tokens is built from the sequence elements.');
+    const need = new Set(), stack = outputs.map(n => n.id);
+    while (stack.length) { const id = stack.pop(); if (need.has(id)) continue; need.add(id); inWires(id).forEach(w => stack.push(w.from.node)); }
+    D.nodes.filter(n => !need.has(n.id)).forEach(n => warnings.push(`${describe(n)} is not connected to an output and is left out.`));
+    const used = D.nodes.filter(n => need.has(n.id));
+    for (const n of used) {
+      const k = ins(n), ws = inWires(n.id);
+      for (let i = 0; i < k; i++) if (!ws.some(w => w.to.port === i))
+        errors.push(`${describe(n)}: ${n.kind === 'decoder' ? (i ? 'the memory (the encoder)' : 'the target input') : k > 1 ? 'input ' + (i + 1) : 'its input'} is not connected.`);
+    }
+    if (errors.length) return {errors, warnings};
+    const order = [], seen = new Set(), visiting = new Set();
+    const visit = id => { if (seen.has(id)) return true; if (visiting.has(id)) return false; visiting.add(id);
+      for (const w of inWires(id)) if (!visit(w.from.node)) return false; visiting.delete(id); seen.add(id); order.push(id); return true; };
+    for (const o of outputs) if (!visit(o.id)) { errors.push('The wires go round in a loop.'); return {errors, warnings}; }
+    // teacher forcing: the tokens that reach a decoder's target input are its target sequence
+    const sourcesOf = id => inWires(id).map(w => w.from.node);
+    const tokensBehind = (id, first) => { const out = new Set(), st = [id]; let firstOnly = first;
+      while (st.length) { const x = st.pop(), n = byId[x];
+        if (n.kind === 'tokens') { out.add(x); continue; }
+        if (n.kind === 'decoder' || n.kind === 'encoder') { if (n.kind === 'decoder' && !firstOnly) { const s0 = inWires(x).find(w => w.to.port === 0); if (s0) st.push(s0.from.node); } continue; }
+        firstOnly = false;
+        sourcesOf(x).forEach(s => st.push(s)); }
+      return [...out]; };
+    const targetTokens = new Set(), decTarget = {};
+    for (const n of used.filter(n => n.kind === 'decoder')) {
+      const w0 = inWires(n.id).find(w => w.to.port === 0);
+      const t = tokensBehind(w0.from.node, false);
+      if (t.length !== 1) errors.push('A Decoder’s target input must come from one Tokens element (through its Embedding).');
+      else { targetTokens.add(t[0]); decTarget[n.id] = t[0]; }
+    }
+    const decoderBehind = id => { const st = [id], seenD = new Set();
+      while (st.length) { const x = st.pop(); if (seenD.has(x)) continue; seenD.add(x); const n = byId[x];
+        if (n.kind === 'decoder') return x; if (n.kind === 'tokens' || n.kind === 'encoder') continue; sourcesOf(x).forEach(s => st.push(s)); }
+      return null; };
+    // shapes, and the numbers in the net: learnt weights, and fixed numbers Wolfram also counts
+    const shape = {}, shared = {}, info = {};
+    let learnt = 0, fixed = 0;
+    const err = m => errors.push(m);
+    for (const id of order) {
+      const n = byId[id], ss = inWires(id).map(w => shape[w.from.node]);
+      const s0 = ss[0];
+      const want = (t, what) => { if (!ss.length || ss.some(s => !s || s.t !== t)) { err(`${describe(n)} takes ${what}.`); return false; } return true; };
+      let w = 0, f = 0;
+      switch (n.kind) {
+        case 'tokens': if (!(+n.vocab >= 1)) err('Tokens need a vocabulary size of 1 or more.'); shape[id] = {t:'tok', V:+n.vocab}; break;
+        case 'numbers': if (!(+n.size >= 1)) err('Numbers per token: the size must be 1 or more.'); shape[id] = {t:'seq', d:+n.size}; break;
+        case 'embed': {
+          if (!want('tok', 'Tokens')) break;
+          const V = s0.V, d = +n.d;
+          if (!(d >= 1)) { err('An Embedding needs a width d of 1 or more.'); break; }
+          if (n.shared) {
+            if (!shared[n.shared]) { shared[n.shared] = {V, d}; w += V * d; }
+            else if (shared[n.shared].V !== V || shared[n.shared].d !== d) err(`Embeddings sharing the weights “${n.shared}” need the same vocabulary and d.`);
+          } else w += V * d;
+          if (n.pos === 'learnt') w += (+n.maxLen) * d;
+          else if (n.pos === 'sinusoidal') { f += 2 * d; if (d % 2) err('Sinusoidal positions need an even d.'); }
+          shape[id] = {t:'seq', d}; break; }
+        case 'project': if (!want('seq', 'a sequence')) break; w += s0.d * n.units + +n.units; shape[id] = {t:'seq', d:+n.units}; break;
+        case 'add': if (!want('seq', 'sequences')) break;
+          if (ss.some(s => s.d !== s0.d)) { err('The sequences added must have the same width.'); break; }
+          shape[id] = {t:'seq', d:s0.d}; break;
+        case 'encoder': case 'decoder': {
+          if (!want('seq', n.kind === 'decoder' ? 'two sequences (the target, and the encoder’s output)' : 'a sequence')) break;
+          const d = s0.d, L = +n.layers, h = +n.heads, dff = +n.dff;
+          if (n.kind === 'decoder' && ss[1].d !== d) { err('A Decoder’s target and memory must have the same width.'); break; }
+          if (!(h >= 1) || d % h) err(`${describe(n)}: the width ${d} must divide into ${h} heads.`);
+          const mha = 4 * (d * d + d), ffn = d * dff + dff + dff * d + d, ln = 2 * d;
+          w += L * (n.kind === 'encoder' ? mha + ffn + 2 * ln : 2 * mha + ffn + 3 * ln);
+          shape[id] = {t:'seq', d}; break; }
+        case 'pick': if (!want('seq', 'a sequence')) break; shape[id] = {t:'vec', d:s0.d}; break;
+        case 'pool': if (!want('seq', 'a sequence')) break; shape[id] = {t:'vec', d:s0.d}; break;
+        case 'dense': if (!want('vec', 'a vector (after Pick or Pool)')) break; w += s0.d * n.units + +n.units; shape[id] = {t:'vec', d:+n.units}; break;
+        case 'softmax': { if (!want('vec', 'a vector (after Pick or Pool)')) break; const k = classesOf(n).length;
+          if (k < 2) err('Softmax needs at least two classes.'); w += s0.d * k + k; break; }
+        case 'possoftmax': if (!want('seq', 'a sequence')) break; w += s0.d + 1; break;
+        case 'regression': if (!want('vec', 'a vector (after Pick or Pool)')) break; w += s0.d * n.outputs + +n.outputs; break;
+        case 'seqsoftmax': {
+          if (!want('seq', 'a sequence')) break;
+          const V = +n.vocab, d = s0.d;
+          if (n.tie) {
+            const sh = shared[n.tie];
+            if (!sh) err(`No Embedding shares the weights “${n.tie}” for the Softmax per token to use.`);
+            else if (sh.V !== V || sh.d !== d) err(`The Softmax per token ties to “${n.tie}”, so its vocabulary must be ${sh.V} and its input width ${sh.d}.`);
+            w += V;
+          } else w += d * V + V;
+          if (+n.smoothing > 0) f += V * V;
+          const dec = decoderBehind(id);
+          info[id] = {decoder:dec, target:dec ? decTarget[dec] : null};
+          if (dec && decTarget[dec] && byId[decTarget[dec]].vocab != V) warnings.push(`The Softmax per token has ${V} classes but its target Tokens have ${byId[decTarget[dec]].vocab}.`);
+          break; }
+        default: err(`${describe(n)} cannot be used in a net with Tokens.`);
+      }
+      info[id] = Object.assign(info[id] || {}, {weights:w, fixed:f});
+      learnt += w; fixed += f;
+    }
+    const names = outputs.filter(n => need.has(n.id)).map(outName);
+    if (new Set(names).size !== names.length) errors.push('Give each output its own name.');
+    const portNames = used.filter(n => ['tokens', 'numbers'].includes(n.kind)).map(n => String(n.name || '').replace(/[^\w]/g, ''));
+    if (portNames.some(p => !p)) errors.push('Every Tokens and Numbers element needs a name: it becomes a port of the net.');
+    if (new Set(portNames).size !== portNames.length) errors.push('Give each input its own name.');
+    const nodes = order.map(id => ({...byId[id], shape:shape[id], info:info[id], from:inWires(id).map(w => w.from.node), target:targetTokens.has(id)}));
+    return {errors, warnings, spec:{seq:true, nodes, outputs:nodes.filter(n => OUT_KINDS.includes(n.kind)), learnt, fixed, params:learnt, total:learnt + fixed, chain:false}};
+  }
+
+  function seqSummaryText(s) {
+    const part = n => ({tokens:`${n.name} (${n.vocab} tokens)`, numbers:`${n.name} (${n.size} per token)`, embed:`embedding ${n.d}`, project:`per-token layer ${n.units}`, add:'add',
+      encoder:`encoder ${n.layers} × (${n.heads} heads, FF ${n.dff} ${n.act})`, decoder:`decoder ${n.layers} × (${n.heads} heads, FF ${n.dff} ${n.act})`,
+      pick:`position ${n.position}`, pool:`${n.op || 'Mean'} pool`, dense:`${n.units} ${n.act}`, softmax:`softmax over ${classesOf(n).length} classes (${outName(n)})`,
+      seqsoftmax:`softmax per token over ${n.vocab} (${outName(n)})`, possoftmax:`softmax over positions (${outName(n)})`, regression:`regression, ${n.outputs} outputs (${outName(n)})`})[n.kind] || n.kind;
+    return s.nodes.map(part).join('; ') + `; ${s.learnt.toLocaleString('en-GB')} weights learnt` + (s.fixed ? ` and ${s.fixed.toLocaleString('en-GB')} fixed numbers` : '');
+  }
+
+  const SEQ_PARTS = `(* The parts, as in tensor-algebra-nets (ff_tensornets_new.nb and Unit 4) *)
+ccnAct = <|"ReLU" -> Ramp, "GELU" -> ElementwiseLayer["GELU"], "Tanh" -> Tanh, "Sigmoid" -> LogisticSigmoid|>;
+ccnLinear[u_, act_] := If[act === "None", LinearLayer[u], NetChain[{LinearLayer[u], ccnAct[act]}]];
+
+(* Multi-head attention: projections of the query and the memory, scaled dot products, the heads joined and projected *)
+ccnMHA[d_, h_, mask_] := NetGraph[<|
+    "q" -> NetMapOperator[NetChain[{LinearLayer[d], ReshapeLayer[{h, d/h}]}]],
+    "k" -> NetMapOperator[NetChain[{LinearLayer[d], ReshapeLayer[{h, d/h}]}]],
+    "v" -> NetMapOperator[NetChain[{LinearLayer[d], ReshapeLayer[{h, d/h}]}]],
+    "att" -> AttentionLayer["Dot", "ScoreRescaling" -> "DimensionSqrt", "Mask" -> mask, "MultiHead" -> True],
+    "o" -> NetMapOperator[NetChain[{FlattenLayer[], LinearLayer[d]}]]|>,
+   {NetPort["Query"] -> "q" -> NetPort["att", "Query"], NetPort["Memory"] -> "k" -> NetPort["att", "Key"],
+    NetPort["Memory"] -> "v" -> NetPort["att", "Value"], "att" -> "o"},
+   "Query" -> {"Varying", d}, "Memory" -> {"Varying", d}];
+ccnFF[d_, dff_, act_] := NetMapOperator[NetChain[{LinearLayer[dff], ccnAct[act], LinearLayer[d]}]];
+ccnLN[] := NormalizationLayer[2, 2];        (* layer normalisation: per position, over the features *)
+
+ccnEncBlock[d_, h_, dff_, act_] := NetGraph[<|"att" -> ccnMHA[d, h, None], "a1" -> TotalLayer[], "n1" -> ccnLN[],
+    "ff" -> ccnFF[d, dff, act], "a2" -> TotalLayer[], "n2" -> ccnLN[]|>,
+   {NetPort["Input"] -> NetPort["att", "Query"], NetPort["Input"] -> NetPort["att", "Memory"],
+    {NetPort["Input"], "att"} -> "a1", "a1" -> "n1", "n1" -> "ff", {"n1", "ff"} -> "a2", "a2" -> "n2"},
+   "Input" -> {"Varying", d}];
+ccnDecBlock[d_, h_, dff_, act_] := NetGraph[<|"self" -> ccnMHA[d, h, "Causal"], "a1" -> TotalLayer[], "n1" -> ccnLN[],
+    "cross" -> ccnMHA[d, h, None], "a2" -> TotalLayer[], "n2" -> ccnLN[], "ff" -> ccnFF[d, dff, act], "a3" -> TotalLayer[], "n3" -> ccnLN[]|>,
+   {NetPort["Input"] -> NetPort["self", "Query"], NetPort["Input"] -> NetPort["self", "Memory"], {NetPort["Input"], "self"} -> "a1", "a1" -> "n1",
+    "n1" -> NetPort["cross", "Query"], NetPort["Memory"] -> NetPort["cross", "Memory"], {"n1", "cross"} -> "a2", "a2" -> "n2",
+    "n2" -> "ff", {"n2", "ff"} -> "a3", "a3" -> "n3"},
+   "Input" -> {"Varying", d}, "Memory" -> {"Varying", d}];
+ccnEncoder[d_, h_, dff_, act_, nL_] := NetChain[Table[ccnEncBlock[d, h, dff, act], nL]];
+ccnDecoder[d_, h_, dff_, act_, nL_] := NetGraph[Association@Table["b" <> ToString[i] -> ccnDecBlock[d, h, dff, act], {i, nL}],
+   Join[{NetPort["Input"] -> NetPort["b1", "Input"]}, Table[NetPort["Memory"] -> NetPort["b" <> ToString[i], "Memory"], {i, nL}],
+    Table["b" <> ToString[i - 1] -> NetPort["b" <> ToString[i], "Input"], {i, 2, L}]]];
+
+(* Fixed sinusoidal positions (Unit 4): sin(position \\[Times] frequency + phase), added to the embedding *)
+ccnSinusoid[d_] := NetGraph[<|"idx" -> SequenceIndicesLayer[], "pos" -> ElementwiseLayer[# - 1. &], "col" -> ReplicateLayer[1, 2],
+    "angle" -> NetMapOperator[LinearLayer[d, "Weights" -> List /@ Flatten@Table[{1., 1.}/10000.^(2 i/d), {i, 0, d/2 - 1}],
+       "Biases" -> Table[If[EvenQ[j], 0., N[Pi/2]], {j, 0, d - 1}], LearningRateMultipliers -> 0]],
+    "sin" -> ElementwiseLayer[Sin], "add" -> TotalLayer[]|>,
+   {NetPort["Input"] -> "idx" -> "pos" -> "col" -> "angle" -> "sin", {NetPort["Input"], "sin"} -> "add"}, "Input" -> {"Varying", d}];
+
+(* Token embedding, optionally sharing its weights, scaled by Sqrt[d], with learnt, sinusoidal or no positions *)
+ccnEmbed[d_, v_, pos_, maxLen_, scale_, shared_] := Module[{layers, conns, last = "tok"},
+   layers = <|"tok" -> If[shared === None, EmbeddingLayer[d, v], EmbeddingLayer[d, v, "Weights" -> NetSharedArray[shared]]]|>;
+   conns = {NetPort["Input"] -> "tok"};
+   If[TrueQ[scale], layers["scale"] = ElementwiseLayer[Evaluate[Sqrt[N@d]] # &]; AppendTo[conns, last -> "scale"]; last = "scale"];
+   Switch[pos,
+    "learnt", layers = Join[layers, <|"idx" -> SequenceIndicesLayer[maxLen], "pos" -> EmbeddingLayer[d, maxLen], "add" -> TotalLayer[]|>];
+     conns = Join[conns, {last -> "add", NetPort["Input"] -> "idx" -> "pos" -> "add"}],
+    "sinusoidal", layers["pe"] = ccnSinusoid[d]; AppendTo[conns, last -> "pe"],
+    _, Null];
+   NetGraph[layers, conns, "Input" -> {"Varying", Restricted["Integer", v]}]];`;
+
+  function seqCells(D, spec, set) {
+    const C = [], add = (style, text) => C.push([style, text]);
+    const s = spec, date = (set.date || new Date().toISOString()).slice(0, 16).replace('T', ' ');
+    const nm = {}; s.nodes.forEach((n, i) => { nm[n.id] = n.kind + (i + 1); });
+    const L = [], conns = [], ports = [], targets = [], losses = [];
+    const multi = s.outputs.length > 1;
+    const lossPort = n => multi ? 'Loss' + outName(n) : 'Loss';
+    const src = (id, forEmbed) => { const n = s.nodes.find(x => x.id === id);
+      if (n.kind === 'tokens' || n.kind === 'numbers') return n.target && forEmbed ? wlStr('most_' + nm[id]) : `NetPort[${wlStr(n.name)}]`;
+      return wlStr(nm[id]); };
+    for (const n of s.nodes) {
+      const k = wlStr(nm[n.id]), sh = n.shape || {};
+      switch (n.kind) {
+        case 'tokens':
+          ports.push(`${wlStr(n.name)} -> {"Varying", Restricted["Integer", ${wlInt(n.vocab)}]}`);
+          if (n.target) { L.push(`${wlStr('most_' + nm[n.id])} -> SequenceMostLayer[]`, `${wlStr('rest_' + nm[n.id])} -> SequenceRestLayer[]`);
+            conns.push(`NetPort[${wlStr(n.name)}] -> ${wlStr('most_' + nm[n.id])}`, `NetPort[${wlStr(n.name)}] -> ${wlStr('rest_' + nm[n.id])}`); }
+          break;
+        case 'numbers': ports.push(`${wlStr(n.name)} -> {"Varying", ${wlInt(n.size)}}`); break;
+        case 'embed': {
+          const tok = s.nodes.find(x => x.id === n.from[0]);
+          L.push(`${k} -> ccnEmbed[${wlInt(n.d)}, ${wlInt(tok.vocab)}, ${wlStr(n.pos)}, ${wlInt(n.maxLen)}, ${n.scale ? 'True' : 'False'}, ${n.shared ? wlStr(n.shared) : 'None'}]`);
+          conns.push(`${src(n.from[0], true)} -> ${k}`); break; }
+        case 'project': L.push(`${k} -> NetMapOperator[ccnLinear[${wlInt(n.units)}, ${wlStr(n.act)}]]`); conns.push(`${src(n.from[0])} -> ${k}`); break;
+        case 'add': L.push(`${k} -> TotalLayer[]`); conns.push(`{${n.from.map(f => src(f)).join(', ')}} -> ${k}`); break;
+        case 'encoder': L.push(`${k} -> ccnEncoder[${sh.d}, ${wlInt(n.heads)}, ${wlInt(n.dff)}, ${wlStr(n.act)}, ${wlInt(n.layers)}]`); conns.push(`${src(n.from[0])} -> ${k}`); break;
+        case 'decoder': L.push(`${k} -> ccnDecoder[${sh.d}, ${wlInt(n.heads)}, ${wlInt(n.dff)}, ${wlStr(n.act)}, ${wlInt(n.layers)}]`);
+          conns.push(`${src(n.from[0])} -> NetPort[${k}, "Input"]`, `${src(n.from[1])} -> NetPort[${k}, "Memory"]`); break;
+        case 'pick': L.push(`${k} -> PartLayer[${wlInt(n.position)}]`); conns.push(`${src(n.from[0])} -> ${k}`); break;
+        case 'pool': L.push(`${k} -> AggregationLayer[${({Mean:'Mean', Max:'Max', Sum:'Total'})[n.op] || 'Mean'}, 1]`); conns.push(`${src(n.from[0])} -> ${k}`); break;
+        case 'dense': L.push(`${k} -> ccnLinear[${wlInt(n.units)}, ${wlStr(n.act)}]`); conns.push(`${src(n.from[0])} -> ${k}`); break;
+        case 'softmax': case 'possoftmax': {
+          const o = outName(n), kk = n.kind === 'softmax' ? classesOf(n).length : 0, p = wlStr(nm[n.id] + 'P'), l = wlStr('loss_' + nm[n.id]);
+          L.push(n.kind === 'softmax' ? `${k} -> LinearLayer[${kk}]` : `${k} -> NetMapOperator[LinearLayer[{}]]`, `${p} -> SoftmaxLayer[]`, `${l} -> CrossEntropyLossLayer["Index"]`);
+          conns.push(`${src(n.from[0])} -> ${k} -> ${p}`, `${p} -> NetPort[${wlStr(o + 'Prob')}]`, `${p} -> NetPort[${l}, "Input"]`,
+            `NetPort[${wlStr(o)}] -> NetPort[${l}, "Target"]`, `${l} -> NetPort[${wlStr(lossPort(n))}]`);
+          targets.push(n.kind === 'softmax' ? `${o}: the class of each example, 1 to ${kk} (${classesOf(n).join(', ')})` : `${o}: the position chosen in each example, from 1`);
+          losses.push(lossPort(n)); break; }
+        case 'regression': {
+          const o = outName(n), t = String(n.target || 'Target').replace(/[^\w]/g, '') || 'Target', l = wlStr('loss_' + nm[n.id]);
+          L.push(`${k} -> LinearLayer[${wlInt(n.outputs)}]`, `${l} -> MeanSquaredLossLayer[]`);
+          conns.push(`${src(n.from[0])} -> ${k}`, `${k} -> NetPort[${wlStr(o)}]`, `${k} -> NetPort[${l}, "Input"]`, `NetPort[${wlStr(t)}] -> NetPort[${l}, "Target"]`, `${l} -> NetPort[${wlStr(lossPort(n))}]`);
+          targets.push(`${t}: ${n.outputs} numbers per example`); losses.push(lossPort(n)); break; }
+        case 'seqsoftmax': {
+          const o = outName(n), V = +n.vocab, p = wlStr(nm[n.id] + 'P'), l = wlStr('loss_' + nm[n.id]), eps = +n.smoothing;
+          L.push(`${k} -> NetMapOperator[LinearLayer[${V}${n.tie ? `, "Weights" -> NetSharedArray[${wlStr(n.tie)}]` : ''}]]`, `${p} -> SoftmaxLayer[]`);
+          conns.push(`${src(n.from[0])} -> ${k} -> ${p}`, `${p} -> NetPort[${wlStr(o)}]`, `${p} -> NetPort[${l}, "Input"]`, `${l} -> NetPort[${wlStr(lossPort(n))}]`);
+          const tgt = n.info && n.info.target ? s.nodes.find(x => x.id === n.info.target) : null;
+          const tsrc = tgt ? wlStr('rest_' + nm[tgt.id]) : `NetPort[${wlStr(o + 'Target')}]`;
+          if (eps > 0) {
+            const sm = wlStr('smooth_' + nm[n.id]);
+            L.push(`${sm} -> EmbeddingLayer[${V}, ${V}, "Weights" -> ${wlNum(1 - eps)} IdentityMatrix[${V}] + ${wlNum(eps)}/${V}, LearningRateMultipliers -> 0]`, `${l} -> CrossEntropyLossLayer["Probabilities"]`);
+            conns.push(`${tsrc} -> ${sm} -> NetPort[${l}, "Target"]`);
+          } else { L.push(`${l} -> CrossEntropyLossLayer["Index"]`); conns.push(`${tsrc} -> NetPort[${l}, "Target"]`); }
+          if (!tgt) { ports.push(`${wlStr(o + 'Target')} -> {"Varying", Restricted["Integer", ${V}]}`); targets.push(`${o}Target: the right token at every position, 1 to ${V}`); }
+          else targets.push(`${tgt.name}: the target tokens with a start token first and an end token last; the decoder reads all but the last, and is scored on all but the first (teacher forcing)`);
+          losses.push(lossPort(n)); break; }
+      }
+    }
+    const inputs = s.nodes.filter(n => n.kind === 'tokens' || n.kind === 'numbers').map(n => n.kind === 'tokens' ? `${n.name}: lists of token indices, 1 to ${n.vocab}` : `${n.name}: lists of ${n.size} numbers per token`);
+    add('Title', `${set.name}: a net generated from a diagram`);
+    add('Text', `Generated by the CCN Net Diagram Editor (editor/net-diagram-editor.html) on ${date} UTC.\nThe net: ${seqSummaryText(s)}.\n` +
+      'It is built from the parts of tensor-algebra-nets (attention, feed-forward, layer normalisation, embeddings) with Wolfram’s layers.');
+    add('Text', 'By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)\nAI System Programming Group');
+    add('Section', 'The diagram');
+    add('Code', `(* The diagram as the editor saved it; open it again in the editor with Open *)\ndiagramJSON = ${wlStr(JSON.stringify({diagram:D, settings:set}))};`);
+    add('Section', 'The parts');
+    add('Code', SEQ_PARTS);
+    add('Section', 'The net');
+    add('Code', `net = NetGraph[<|\n   ${L.join(',\n   ')}|>,\n  {${conns.join(',\n   ')}},\n  ${ports.join(',\n  ')}];\nnet`);
+    add('Code', `(* The numbers in the net: Wolfram counts the learnt weights and the fixed numbers (sinusoidal positions, label smoothing) *)\n` +
+      `netCount = Information[NetInitialize[net], "ArraysTotalElementCount"];\n` +
+      `Grid[{{"Numbers in the net, Wolfram's count", netCount}, {"Expected from the diagram", ${s.total}},\n   {"of which learnt weights", ${s.learnt}}, {"of which fixed numbers", ${s.fixed}},\n   {"Same?", netCount === ${s.total}}}, Frame -> All, Alignment -> Left]`);
+    add('Section', 'Training on your own data');
+    add('Text', 'The net is trained on examples you provide. trainData is an Association with one list per port, the lists in step:\n' +
+      inputs.concat(targets).map(t => '  ' + t).join('\n') +
+      '\nFor the TensorNets nets, the full recipes (data from the exact oracle, warm-up, beam search for decoding) are in the notebooks of tensor-algebra-nets.');
+    add('Code', `If[ValueQ[trainData],\n  {trainTime, trained} = AbsoluteTiming[NetTrain[net, trainData, LossFunction -> ${losses.length > 1 ? '{' + losses.map(wlStr).join(', ') + '}' : wlStr(losses[0])},\n` +
+      `     MaxTrainingRounds -> ${wlInt(set.epochs)}, BatchSize -> ${wlInt(set.batch)}, Method -> {"ADAM", "LearningRate" -> ${wlNum(set.lr)}, "L2Regularization" -> ${wlNum(set.l2)}},\n` +
+      `     RandomSeeding -> ${wlInt(set.seed)}, TargetDevice -> "CPU", TrainingProgressReporting -> None]],\n  "Define trainData first, as described above."]`);
+    add('Text', '© Computational Classnotes · CC BY-NC-SA 4.0');
+    return C;
+  }
+
+
+  /* ---------- Examples: SubjectNet, and the nets of tensor-algebra-nets ---------- */
+  const TN_RULES = 'ZeroSum, ZeroProd, UnitProd, PowerExpand, DistLeft, DistRight, AssocSum, AssocProd, FactorLeft, FactorRight, PowerFold';
+  function example(key) {
+    const nodes = [], wires = [];
+    const N = (id, o) => nodes.push({id, ...o});
+    const W = (a, b, port = 0) => wires.push({id:'w' + wires.length, from:{node:a, port:0}, to:{node:b, port}});
+    const tnEnc = {layers:3, heads:4, dff:512, act:'GELU'};
+    const tnEmb = {d:128, pos:'learnt', maxLen:96, scale:false, shared:''};
+    if (key === 'subjectnet') {
+      FEATURE_KEYS.forEach((k, i) => N('f' + i, {kind:'feature', key:k, x:100, y:60 + i * 44}));
+      N('h', {kind:'hash', nIn:5, slots:2048, x:240, y:148}); N('s', {kind:'slots', size:2048, x:330, y:148});
+      N('d', {kind:'dense', units:32, act:'ReLU', x:470, y:148}); N('o', {kind:'softmax', classes:'object, other', x:610, y:148});
+      FEATURE_KEYS.forEach((k, i) => W('f' + i, 'h', i)); W('h', 's'); W('s', 'd'); W('d', 'o');
+    } else if (key === 'ownet') {
+      N('tS', {kind:'tokens', name:'Input', vocab:10, x:90, y:110}); N('tT', {kind:'tokens', name:'Target', vocab:10, x:90, y:330});
+      const e = {kind:'embed', d:32, pos:'sinusoidal', maxLen:96, scale:true, shared:'W'};
+      N('eS', {...e, x:260, y:110}); N('eT', {...e, x:260, y:330});
+      N('en', {kind:'encoder', layers:2, heads:4, dff:128, act:'ReLU', x:440, y:110});
+      N('de', {kind:'decoder', layers:2, heads:4, dff:128, act:'ReLU', x:620, y:330});
+      N('so', {kind:'seqsoftmax', name:'Probabilities', vocab:10, tie:'W', smoothing:0.1, x:800, y:330});
+      W('tS', 'eS'); W('tT', 'eT'); W('eS', 'en'); W('eT', 'de', 0); W('en', 'de', 1); W('de', 'so');
+    } else if (key === 'tnparser') {
+      N('tS', {kind:'tokens', name:'Input', vocab:32, x:90, y:110}); N('tT', {kind:'tokens', name:'Target', vocab:22, x:90, y:330});
+      N('eS', {kind:'embed', ...tnEmb, x:260, y:110}); N('eT', {kind:'embed', ...tnEmb, x:260, y:330});
+      N('en', {kind:'encoder', ...tnEnc, x:440, y:110}); N('de', {kind:'decoder', ...tnEnc, x:620, y:330});
+      N('so', {kind:'seqsoftmax', name:'Probabilities', vocab:22, tie:'', smoothing:0, x:800, y:330});
+      W('tS', 'eS'); W('tT', 'eT'); W('eS', 'en'); W('eT', 'de', 0); W('en', 'de', 1); W('de', 'so');
+    } else if (key === 'tnpolicy') {
+      N('t', {kind:'tokens', name:'Input', vocab:22, x:90, y:200}); N('e', {kind:'embed', ...tnEmb, x:260, y:200});
+      N('en', {kind:'encoder', ...tnEnc, x:440, y:200}); N('pk', {kind:'pick', position:1, x:600, y:110});
+      N('ru', {kind:'softmax', name:'Rule', classes:TN_RULES, x:740, y:110}); N('no', {kind:'possoftmax', name:'Node', x:640, y:330});
+      W('t', 'e'); W('e', 'en'); W('en', 'pk'); W('pk', 'ru'); W('en', 'no');
+    } else if (key === 'tnvalue') {
+      N('t', {kind:'tokens', name:'Input', vocab:20, x:90, y:110}); N('nu', {kind:'numbers', name:'Dims', size:1, x:90, y:290});
+      N('e', {kind:'embed', ...tnEmb, x:260, y:110}); N('pr', {kind:'project', units:128, act:'None', x:260, y:290});
+      N('ad', {kind:'add', nIn:2, x:380, y:200}); N('en', {kind:'encoder', ...tnEnc, x:500, y:200});
+      N('po', {kind:'pool', op:'Mean', x:650, y:200}); N('de', {kind:'dense', units:128, act:'GELU', x:760, y:200});
+      N('re', {kind:'regression', name:'Estimate', target:'Target', outputs:3, x:880, y:200});
+      W('t', 'e'); W('nu', 'pr'); W('e', 'ad', 0); W('pr', 'ad', 1); W('ad', 'en'); W('en', 'po'); W('po', 'de'); W('de', 're');
+    }
+    return {nodes, wires};
+  }
+  const EXAMPLES = [['subjectnet', 'SubjectNet (nets/SubjectNet.nb)'], ['ownet', 'owNet: Unit 4 of tensor-algebra-nets'],
+    ['tnparser', 'tnParserNet: TensorNets parser'], ['tnpolicy', 'tnPolicyNet: TensorNets policy'], ['tnvalue', 'tnValueNet: TensorNets value']];
   /* ---------- Python: a script that uses our own code in python/ccn_nets (no neural-net library) ---------- */
   const FEATURE_PY = {
     Own:'(["own:none"] if not own else ["o:" + w for w in own] + ["oL:" + own[-1]])',
@@ -451,7 +774,10 @@ gradientCheckGen[] := Module[{sz = Join[{10}, ConstantArray[4, Length[actsA]], {
 
   /* What stops a Python script: our own Python code handles chains only, in this issue */
   function pythonProblems(spec) {
-    return spec.chain ? [] : ['Python (our own code) handles nets drawn as a chain only in this issue. Choose Wolfram for a net that branches.'];
+    if (spec.seq) return ['Python (our own code) has no attention yet, so nets with Tokens (transformers) are written for Wolfram only at this stage. Choose Wolfram.'];
+    const out = spec.chain ? [] : ['Python (our own code) handles nets drawn as a chain only in this issue. Choose Wolfram for a net that branches.'];
+    if (spec.graph.some(g => g.act === 'GELU')) out.push('GELU is not in our Python code yet: choose ReLU, Tanh, Sigmoid or None, or choose Wolfram.');
+    return out;
   }
 
   function pyScript(D, spec, set) {
@@ -561,7 +887,8 @@ gradientCheckGen[] := Module[{sz = Join[{10}, ConstantArray[4, Length[actsA]], {
     return L.join('\n');
   }
 
-  return {FEATURE_KEYS, FEATURE_LABEL, ACTS, ins, outs, classesOf, compile, cells, notebook, plain, summaryText, describe, pyScript, pyName, pythonProblems};
+  return {FEATURE_KEYS, FEATURE_LABEL, ACTS, ins, outs, classesOf, compile, cells, notebook, plain, summaryText, describe, pyScript, pyName, pythonProblems,
+    isSeq, SEQ_KINDS, seqActs, outName, seqSummaryText, example, EXAMPLES};
 })();
 if (typeof module !== 'undefined') module.exports = NetCore;
 </script>
@@ -588,7 +915,18 @@ function size(n) {
     case 'dense': { const k = Math.min(+n.units || 1, 8); return {w:22, h:(k - 1) * 28 + 22 + (+n.units > 8 ? GAP : 0)}; }
     case 'dropout': return {w:84, h:30};
     case 'concat': return {w:14, h:Math.max(60, n.nIn * 26 + 12)};
-    case 'softmax': { const k = Math.max(NetCore.classesOf(n).length, 1); return {w:54, h:(k - 1) * 64 + 56}; }
+    case 'softmax': { const all = NetCore.classesOf(n).length, k = Math.min(Math.max(all, 1), 6); return {w:54, h:(k - 1) * (all > 6 ? 34 : 64) + 56}; }
+    case 'tokens': case 'numbers': return {w:124, h:46};
+    case 'embed': return {w:150, h:64};
+    case 'project': return {w:112, h:46};
+    case 'add': return {w:34, h:34};
+    case 'encoder': return {w:150, h:72};
+    case 'decoder': return {w:150, h:84};
+    case 'seqsoftmax': return {w:150, h:76};
+    case 'pick': return {w:90, h:46};
+    case 'pool': return {w:84, h:56};
+    case 'possoftmax': return {w:132, h:54};
+    case 'regression': return {w:120, h:54};
   }
   return {w:40, h:40};
 }
@@ -608,14 +946,52 @@ function glyphs(n, side) {
   const {w, h} = size(n);
   if (n.kind === 'slots') return LIT.map(i => ({x:n.x + (side === 'out' ? w / 2 : -w / 2), y:n.y - h / 2 + i * 12 + 6}));
   if (n.kind === 'dense') return unitYs(n).map(y => ({x:n.x + (side === 'out' ? 9 : -9), y}));
-  if (n.kind === 'softmax') { const k = NetCore.classesOf(n).length; return Array.from({length:k}, (_, i) => ({x:n.x - 12, y:n.y - h / 2 + 28 + i * 64})); }
+  if (n.kind === 'softmax') { const all = NetCore.classesOf(n).length, k = Math.min(all, 6), sp = all > 6 ? 34 : 64; return Array.from({length:k}, (_, i) => ({x:n.x - 12, y:n.y - h / 2 + 28 + i * sp})); }
   return null;
 }
 function wirePath(p, q) { const c = Math.max(24, Math.abs(q.x - p.x) / 2); return `M${p.x},${p.y} C${p.x + c},${p.y} ${q.x - c},${q.y} ${q.x},${q.y}`; }
 function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
-const text = (parent, x, y, s, cls = 'lbl', extra = {}) => { const t = el('text', {x, y, class:cls, ...extra}, parent); t.textContent = s; return t; };
+// a text-anchor given here must beat the class's own, so it is set as a style
+const text = (parent, x, y, s, cls = 'lbl', extra = {}) => { const t = el('text', {x, y, class:cls, ...extra, ...(extra['text-anchor'] ? {style:`text-anchor:${extra['text-anchor']}`} : {})}, parent); t.textContent = s; return t; };
 const fmt = x => (+x).toLocaleString('en-GB');
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+
+/* ---------- drawing the sequence elements ---------- */
+const SEQC = {tok:['#EEEDFE', '#534AB7'], num:['#FAEEDA', '#854F0B'], enc:['#E1F5EE', '#0F6E56'], dec:['#FBEAF0', '#993556'], out:['#FAECE7', '#993C1D'], grey:['#ecebe6', '#73726c']};
+function arrowOut(g, x, y) {
+  el('line', {x1:x + 2, y1:y, x2:x + 20, y2:y, stroke:C.grey, 'stroke-width':1.2}, g);
+  el('path', {d:`M${x + 15},${y - 4} L${x + 21},${y} L${x + 15},${y + 4}`, fill:'none', stroke:C.grey, 'stroke-width':1.2}, g);
+}
+function box(g, x0, y0, w, h, [fill, stroke], lines, opts = {}) {
+  if (opts.stack) for (let k = Math.min(opts.stack, 3) - 1; k >= 1; k--)
+    el('rect', {x:x0 + 4 * k, y:y0 - 4 * k, width:w, height:h, rx:6, fill, stroke, 'stroke-width':0.6, opacity:0.55}, g);
+  el('rect', {x:x0, y:y0, width:w, height:h, rx:6, fill, stroke, 'stroke-width':0.8, class:'outline', ...(opts.dashed ? {'stroke-dasharray':'4 3'} : {})}, g);
+  const cy = y0 + h / 2, step = 15, top = cy - (lines.length - 1) * step / 2;
+  lines.forEach((t, i) => text(g, x0 + w / 2, top + i * step, t, 'lbl', {fill:stroke, ...(i === 0 ? {'font-weight':600} : {})}));
+}
+function drawSeq(g, n, x0, y0, w, h) {
+  const name = NetCore.outName(n);
+  switch (n.kind) {
+    case 'tokens': box(g, x0, y0, w, h, SEQC.tok, [`Tokens \u201c${n.name}\u201d`, `vocabulary ${fmt(n.vocab)}`]); break;
+    case 'numbers': box(g, x0, y0, w, h, SEQC.num, [`Numbers \u201c${n.name}\u201d`, `${n.size} per token`]); break;
+    case 'embed': box(g, x0, y0, w, h, SEQC.tok, [`Embedding \u00b7 d ${n.d}`, n.pos === 'learnt' ? `learnt positions (${n.maxLen})` : n.pos === 'sinusoidal' ? 'sinusoidal positions' : 'no positions',
+      [n.shared ? `shares \u201c${n.shared}\u201d` : '', n.scale ? '\u00d7 \u221ad' : ''].filter(Boolean).join(' \u00b7 ') || 'own weights']); break;
+    case 'project': box(g, x0, y0, w, h, SEQC.grey, ['Per token', `${n.units} ${n.act === 'None' ? 'linear' : n.act}`]); break;
+    case 'add': el('circle', {cx:n.x, cy:n.y, r:16, fill:SEQC.grey[0], stroke:SEQC.grey[1], 'stroke-width':0.8, class:'outline'}, g); text(g, n.x, n.y, '+', 'lblb', {'text-anchor':'middle'}); break;
+    case 'encoder': box(g, x0, y0, w, h, SEQC.enc, ['Encoder', `${n.layers} \u00d7 (attention + FF)`, `${n.heads} heads \u00b7 FF ${n.dff} ${n.act}`], {stack:+n.layers}); break;
+    case 'decoder': box(g, x0, y0, w, h, SEQC.dec, ['Decoder', `${n.layers} \u00d7 (self, cross + FF)`, `${n.heads} heads \u00b7 FF ${n.dff} ${n.act}`], {stack:+n.layers});
+      // which input is which: the target above the box, the memory below it, clear of the wires
+      text(g, x0 + 4, y0 - 9, '\u2193 target (upper input)', 'lbl', {'text-anchor':'start', fill:SEQC.dec[1]});
+      text(g, x0 + 4, y0 + h + 13, '\u2191 memory (lower input)', 'lbl', {'text-anchor':'start', fill:SEQC.dec[1]}); break;
+    case 'seqsoftmax': box(g, x0, y0, w, h, SEQC.out, ['Softmax per token', `${fmt(n.vocab)} tokens`, n.tie ? `tied to \u201c${n.tie}\u201d` : 'own weights', +n.smoothing > 0 ? `label smoothing ${n.smoothing}` : 'no smoothing'], {dashed:true});
+      arrowOut(g, x0 + w, n.y); text(g, x0 + w + 26, n.y, name, 'lblb'); break;
+    case 'pick': box(g, x0, y0, w, h, SEQC.grey, ['Pick', `position ${n.position}`]); break;
+    case 'pool': el('polygon', {points:`${x0},${y0} ${x0 + w},${n.y - h * 0.25} ${x0 + w},${n.y + h * 0.25} ${x0},${y0 + h}`, fill:SEQC.grey[0], stroke:SEQC.grey[1], 'stroke-width':0.8, class:'outline'}, g);
+      text(g, n.x - 4, n.y, `${n.op || 'Mean'} pool`, 'lbl', {fill:SEQC.grey[1]}); break;
+    case 'possoftmax': box(g, x0, y0, w, h, SEQC.out, ['Softmax over', 'positions'], {dashed:true}); arrowOut(g, x0 + w, n.y); text(g, x0 + w + 26, n.y, name, 'lblb'); break;
+    case 'regression': box(g, x0, y0, w, h, SEQC.out, ['Regression', `${n.outputs} outputs`], {dashed:true}); arrowOut(g, x0 + w, n.y); text(g, x0 + w + 26, n.y, name, 'lblb'); break;
+  }
+}
 
 /* ---------- render ---------- */
 function render() {
@@ -664,16 +1040,18 @@ function render() {
       el('rect', {x:x0, y:y0, width:w, height:h, rx:3, fill:C.greyF, stroke:C.grey, 'stroke-width':0.8, class:'outline'}, g);
       text(g, n.x, y0 + h + 16, 'Join');
     } else if (n.kind === 'softmax') {
-      const cl = NetCore.classesOf(n);
+      const cl = NetCore.classesOf(n), many = cl.length > 6;
       el('rect', {x:x0, y:y0, width:w, height:h, rx:8, fill:'none', stroke:C.grey, 'stroke-width':0.8, 'stroke-dasharray':'4 3', class:'outline'}, g);
-      cl.forEach((c, i) => {
-        const cy = y0 + 28 + i * 64;
+      cl.slice(0, 6).forEach((c, i) => {
+        const cy = y0 + 28 + i * (many ? 34 : 64);
         el('circle', {cx:n.x, cy, r:12, fill:C.coralF, stroke:C.coral, 'stroke-width':0.8}, g);
-        el('line', {x1:x0 + w + 2, y1:cy, x2:x0 + w + 20, y2:cy, stroke:C.grey, 'stroke-width':1.2}, g);
-        el('path', {d:`M${x0 + w + 15},${cy - 4} L${x0 + w + 21},${cy} L${x0 + w + 15},${cy + 4}`, fill:'none', stroke:C.grey, 'stroke-width':1.2}, g);
-        text(g, x0 + w + 26, cy, cap(c), 'lblb');
+        if (!many) { arrowOut(g, x0 + w, cy); text(g, x0 + w + 26, cy, cap(c), 'lblb'); }
       });
+      // more than six classes: six circles are drawn, and one arrow names the output and its number of classes
+      if (many) { arrowOut(g, x0 + w, n.y); text(g, x0 + w + 26, n.y - 8, NetCore.outName(n), 'lblb'); text(g, x0 + w + 26, n.y + 10, `${cl.length} classes`, 'lbl', {'text-anchor':'start'}); }
       text(g, n.x, y0 + h + 16, 'Softmax');
+    } else if (NetCore.SEQ_KINDS.includes(n.kind)) {
+      drawSeq(g, n, x0, y0, w, h);
     }
     for (let i = 0; i < NetCore.ins(n); i++) { const p = portPos(n, 'in', i); el('circle', {cx:p.x, cy:p.y, r:6, class:'port', 'data-pn':n.id, 'data-side':'in', 'data-port':i}, gn); }
     for (let i = 0; i < NetCore.outs(n); i++) { const p = portPos(n, 'out', i); el('circle', {cx:p.x, cy:p.y, r:6, class:'port', 'data-pn':n.id, 'data-side':'out', 'data-port':i}, gn); }
@@ -685,7 +1063,7 @@ function fit() {
   const svg = $('#canvas'), r = svg.getBoundingClientRect();
   if (!D.nodes.length || !r.width) { view = {x:0, y:0, s:1}; applyView(); return; }
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  D.nodes.forEach(n => { const {w, h} = size(n), extra = n.kind === 'softmax' ? 90 : 10; x0 = Math.min(x0, n.x - w / 2 - 10); x1 = Math.max(x1, n.x + w / 2 + extra); y0 = Math.min(y0, n.y - h / 2 - 10); y1 = Math.max(y1, n.y + h / 2 + 26); });
+  D.nodes.forEach(n => { const {w, h} = size(n), extra = ['softmax', 'seqsoftmax', 'possoftmax', 'regression'].includes(n.kind) ? 110 : 10; x0 = Math.min(x0, n.x - w / 2 - 10); x1 = Math.max(x1, n.x + w / 2 + extra); y0 = Math.min(y0, n.y - h / 2 - 10); y1 = Math.max(y1, n.y + h / 2 + 26); });
   const s = Math.min(1.6, (r.width - 60) / (x1 - x0), (r.height - 60) / (y1 - y0));
   view.s = Math.max(0.2, s); view.x = (x0 + x1) / 2 - r.width / 2 / view.s; view.y = (y0 + y1) / 2 - r.height / 2 / view.s;
   applyView();
@@ -763,7 +1141,19 @@ const DEFAULTS = {
   dense:{kind:'dense', units:32, act:'ReLU'},
   dropout:{kind:'dropout', rate:0.5},
   concat:{kind:'concat', nIn:2},
-  softmax:{kind:'softmax', classes:'object, other'},
+  softmax:{kind:'softmax', classes:'object, other', name:'Class'},
+  tokens:{kind:'tokens', name:'Input', vocab:32},
+  numbers:{kind:'numbers', name:'Dims', size:1},
+  embed:{kind:'embed', d:128, pos:'learnt', maxLen:96, scale:false, shared:''},
+  project:{kind:'project', units:128, act:'None'},
+  add:{kind:'add', nIn:2},
+  encoder:{kind:'encoder', layers:3, heads:4, dff:512, act:'GELU'},
+  decoder:{kind:'decoder', layers:3, heads:4, dff:512, act:'GELU'},
+  seqsoftmax:{kind:'seqsoftmax', name:'Probabilities', vocab:22, tie:'', smoothing:0},
+  pick:{kind:'pick', position:1},
+  pool:{kind:'pool', op:'Mean'},
+  possoftmax:{kind:'possoftmax', name:'Node'},
+  regression:{kind:'regression', name:'Estimate', target:'Target', outputs:3},
 };
 function addNode(kind) {
   pushUndo();
@@ -801,19 +1191,67 @@ function inspector() {
     dropout:`<label>Rate</label><input type="number" id="iRate" min="0" max="0.95" step="0.05" value="${n.rate}">`,
     concat:`<label>Inputs</label><input type="number" id="iNIn" min="2" max="8" value="${n.nIn}">`,
     softmax:`<label>Classes, separated by commas</label><input type="text" id="iClasses" value="${escA(n.classes)}">
+      <label>Name (in a net with Tokens: its port, and its target port)</label><input type="text" id="iName" value="${escA(n.name || 'Class')}">
       <div class="hint" style="margin-top:6px">With SubjectNet's data the classes are <code>object, other</code>.</div>`,
+    tokens:`<div class="row"><div><label>Name (the port)</label><input type="text" id="iName" value="${escA(n.name)}"></div>
+      <div><label>Vocabulary size</label><input type="number" id="iVocab" min="1" value="${n.vocab}"></div></div>
+      <div class="hint" style="margin-top:6px">A sequence of token indices, 1 to the vocabulary size. Tokens that reach a Decoder's target input are its target: the decoder reads them without the last, and the Softmax per token is scored on them without the first (teacher forcing).</div>`,
+    numbers:`<div class="row"><div><label>Name (the port)</label><input type="text" id="iName" value="${escA(n.name)}"></div>
+      <div><label>Numbers per token</label><input type="number" id="iSizeN" min="1" value="${n.size}"></div></div>`,
+    embed:`<div class="row"><div><label>Width d</label><input type="number" id="iD" min="2" value="${n.d}"></div>
+      <div><label>Positions</label><select id="iPos">${opt(['learnt', 'sinusoidal', 'none'], n.pos)}</select></div></div>
+      <div class="row"><div><label>Longest sequence (learnt)</label><input type="number" id="iMaxLen" min="1" value="${n.maxLen}"></div>
+      <div><label>Shared weights (name)</label><input type="text" id="iShared" value="${escA(n.shared)}" placeholder="none"></div></div>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="iScale"${n.scale ? ' checked' : ''}> multiply by \u221ad</label>
+      <div class="hint" style="margin-top:6px">Embeddings with the same shared name use one weight array, as owNet's source, target and output do.</div>`,
+    project:`<div class="row"><div><label>Units</label><input type="number" id="iUnits" min="1" value="${n.units}"></div>
+      <div><label>Activation</label><select id="iAct">${opt(NetCore.seqActs, n.act)}</select></div></div><div class="hint" style="margin-top:6px">The same layer applied to every position.</div>`,
+    add:`<label>Inputs</label><input type="number" id="iNIn" min="2" max="8" value="${n.nIn}"><div class="hint" style="margin-top:6px">Adds sequences of the same width, position by position.</div>`,
+    encoder:`<div class="row"><div><label>Layers</label><input type="number" id="iLayers" min="1" value="${n.layers}"></div><div><label>Heads</label><input type="number" id="iHeads" min="1" value="${n.heads}"></div></div>
+      <div class="row"><div><label>Feed-forward width</label><input type="number" id="iDff" min="1" value="${n.dff}"></div><div><label>Activation</label><select id="iAct">${opt(['ReLU', 'GELU', 'Tanh', 'Sigmoid'], n.act)}</select></div></div>
+      <div class="hint" style="margin-top:6px">Each layer: multi-head self-attention, then a feed-forward net, each with a residual connection and layer normalisation. The width d comes from the input.</div>`,
+    decoder:`<div class="row"><div><label>Layers</label><input type="number" id="iLayers" min="1" value="${n.layers}"></div><div><label>Heads</label><input type="number" id="iHeads" min="1" value="${n.heads}"></div></div>
+      <div class="row"><div><label>Feed-forward width</label><input type="number" id="iDff" min="1" value="${n.dff}"></div><div><label>Activation</label><select id="iAct">${opt(['ReLU', 'GELU', 'Tanh', 'Sigmoid'], n.act)}</select></div></div>
+      <div class="hint" style="margin-top:6px">Upper input: the target sequence. Lower input: the memory, the encoder's output. Each layer: causal self-attention, cross-attention to the memory, and a feed-forward net.</div>`,
+    seqsoftmax:`<div class="row"><div><label>Name (the port)</label><input type="text" id="iName" value="${escA(n.name)}"></div>
+      <div><label>Vocabulary size</label><input type="number" id="iVocab" min="2" value="${n.vocab}"></div></div>
+      <div class="row"><div><label>Tied to shared weights</label><input type="text" id="iTie" value="${escA(n.tie)}" placeholder="none"></div>
+      <div><label>Label smoothing \u03b5</label><input type="number" id="iSmooth" min="0" max="0.5" step="0.05" value="${n.smoothing}"></div></div>`,
+    pick:`<label>Position</label><input type="number" id="iPosition" min="1" value="${n.position}"><div class="hint" style="margin-top:6px">The vector at one position; tnPolicyNet reads the goal token at position 1.</div>`,
+    pool:`<label>Pooling</label><select id="iOp">${opt(['Mean', 'Max', 'Sum'], n.op || 'Mean')}</select>`,
+    possoftmax:`<label>Name (its port, and its target port)</label><input type="text" id="iName" value="${escA(n.name)}"><div class="hint" style="margin-top:6px">One score per position, turned into a probability over the positions: which node to rewrite.</div>`,
+    regression:`<div class="row"><div><label>Name (the port)</label><input type="text" id="iName" value="${escA(n.name)}"></div><div><label>Outputs</label><input type="number" id="iOutputs" min="1" value="${n.outputs}"></div></div>
+      <label>Target port</label><input type="text" id="iTarget" value="${escA(n.target)}">`,
   };
   box.innerHTML = `<div class="hint" style="margin-bottom:4px">${escA(NetCore.describe(n))}</div>` + (H[n.kind] || '') + `<div class="row" style="margin-top:10px"><button id="iDel">Delete</button></div>`;
   $('#iDel').onclick = delSel;
   const on = (id, fn) => { const x = $(id); if (x) x.addEventListener('change', () => { pushUndo(); fn(x.value); trimWires(n); render(); inspector(); }); };
   on('#iKey', v => n.key = v);
-  on('#iNIn', v => n.nIn = Math.max(n.kind === 'concat' ? 2 : 1, Math.min(12, Math.round(+v) || 1)));
+  on('#iNIn', v => n.nIn = Math.max(n.kind === 'concat' || n.kind === 'add' ? 2 : 1, Math.min(12, Math.round(+v) || 1)));
   on('#iSlots', v => n.slots = Math.max(1, Math.round(+v) || 1));
   on('#iSize', v => n.size = Math.max(1, Math.round(+v) || 1));
   on('#iUnits', v => n.units = Math.max(1, Math.round(+v) || 1));
   on('#iAct', v => n.act = v);
   on('#iRate', v => n.rate = Math.min(0.95, Math.max(0, +v || 0)));
   on('#iClasses', v => n.classes = v);
+  const int = (v, lo = 1) => Math.max(lo, Math.round(+v) || lo);
+  on('#iName', v => n.name = v.trim().replace(/[^\w]/g, '') || n.name);
+  on('#iVocab', v => n.vocab = int(v));
+  on('#iSizeN', v => n.size = int(v));
+  on('#iD', v => n.d = int(v, 2));
+  on('#iPos', v => n.pos = v);
+  on('#iMaxLen', v => n.maxLen = int(v));
+  on('#iShared', v => n.shared = v.trim());
+  on('#iTie', v => n.tie = v.trim());
+  on('#iSmooth', v => n.smoothing = Math.min(0.5, Math.max(0, +v || 0)));
+  on('#iLayers', v => n.layers = int(v));
+  on('#iHeads', v => n.heads = int(v));
+  on('#iDff', v => n.dff = int(v));
+  on('#iPosition', v => n.position = int(v));
+  on('#iOp', v => n.op = v);
+  on('#iOutputs', v => n.outputs = int(v));
+  on('#iTarget', v => n.target = v.trim().replace(/[^\w]/g, '') || 'Target');
+  const sc = $('#iScale'); if (sc) sc.addEventListener('change', () => { pushUndo(); n.scale = sc.checked; render(); inspector(); });
 }
 function trimWires(n) { D.wires = D.wires.filter(w => !(w.to.node === n.id && w.to.port >= NetCore.ins(n)) && !(w.from.node === n.id && w.from.port >= NetCore.outs(n))); }
 
@@ -831,7 +1269,15 @@ function summary() {
       .map(w => /^Version A leaves dropout out/.test(w) ? 'The Python version leaves dropout out in this issue: our own code has no dropout yet.' : w);
   }
   let h = '';
-  if (r.spec) {
+  if (r.spec && r.spec.seq) {
+    const s = r.spec, inputs = s.nodes.filter(n => n.kind === 'tokens' || n.kind === 'numbers');
+    h += `<div class="stat"><b>Inputs</b><span>${escA(inputs.map(n => n.kind === 'tokens' ? `${n.name} (${fmt(n.vocab)} tokens${n.target ? ', target' : ''})` : `${n.name} (${n.size} per token)`).join(', '))}</span>
+      <b>Outputs</b><span>${escA(s.outputs.map(n => NetCore.outName(n)).join(', '))}</span>
+      <b>Shape</b><span>a sequence net (NetGraph)</span>
+      <b>Language</b><span>${py ? 'Python: not yet for sequence nets' : 'Wolfram: NetGraph with Wolfram\u2019s layers'}</span>
+      <b>Weights</b><span>${fmt(s.learnt)} learnt</span>
+      <b>Wolfram counts</b><span>${fmt(s.total)}${s.fixed ? ` (with ${fmt(s.fixed)} fixed numbers)` : ''}</span></div>`;
+  } else if (r.spec) {
     const s = r.spec;
     h += `<div class="stat"><b>Input</b><span>${escA(s.input.type === 'hashed' ? s.input.features.map(k => NetCore.FEATURE_LABEL[k]).join(', ') + ' → ' + fmt(s.input.dim) + ' slots' : fmt(s.input.dim) + ' slots, your own vectors')}</span>
       <b>Layers</b><span>${escA(s.graph.map(g => g.kind === 'dense' ? `${g.units} ${g.act}` : g.kind === 'dropout' ? `dropout ${g.rate}` : g.kind === 'concat' ? 'join' : `softmax ${g.classes.length}`).join(' → '))}</span>
@@ -849,7 +1295,7 @@ function generate() {
   const set = settings(), py = set.lang === 'python';
   if (!r.spec || r.errors.length) { $('#code').value = (py ? '# Not ready yet:\n' + r.errors.map(e => '#   ' + e).join('\n') : '(* The diagram is not complete yet:\n' + r.errors.map(e => '   ' + e).join('\n') + ' *)'); lastCells = null; return null; }
   if (py) { lastCells = {python:NetCore.pyScript(D, r.spec, set)}; $('#code').value = lastCells.python; return lastCells; }
-  if (!set.versionA && !set.versionB) { $('#code').value = '(* Choose version A, version B or both in the training settings. *)'; lastCells = null; return null; }
+  if (!r.spec.seq && !set.versionA && !set.versionB) { $('#code').value = '(* Choose version A, version B or both in the training settings. *)'; lastCells = null; return null; }
   lastCells = NetCore.cells(D, r.spec, set);
   $('#code').value = NetCore.plain(lastCells);
   return lastCells;
@@ -908,7 +1354,10 @@ function subjectNetDiagram() {
   wires.push({id:'wd', from:{node:'d', port:0}, to:{node:'o', port:0}});
   return {nodes, wires};
 }
-$('#bExample').onclick = () => { pushUndo(); D = subjectNetDiagram(); select(null); fit(); };
+$('#exSel').innerHTML = '<option value="">Examples\u2026</option>' + NetCore.EXAMPLES.map(([k, t]) => `<option value="${k}">${escA(t)}</option>`).join('');
+const EXAMPLE_NAMES = {subjectnet:'SubjectNetFromDiagram', ownet:'owNetFromDiagram', tnparser:'tnParserNetFromDiagram', tnpolicy:'tnPolicyNetFromDiagram', tnvalue:'tnValueNetFromDiagram'};
+$('#exSel').onchange = e => { const k = e.target.value; if (!k) return; pushUndo(); D = NetCore.example(k); $('#sName').value = EXAMPLE_NAMES[k] || $('#sName').value; select(null); fit(); save(); e.target.value = ''; };
+$('#addSeq').onchange = e => { const k = e.target.value; if (k) addNode(k); e.target.value = ''; };
 
 /* ---------- persistence ---------- */
 const KEY = 'ccn-net-diagrams-v1';

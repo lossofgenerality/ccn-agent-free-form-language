@@ -27,6 +27,55 @@ Wires run from an output port (right side) to an input port (left side). An inpu
 
 The panel on the right reads the drawing as you work. It shows the input, the layers, whether the net is a chain, and the number of weights, with any errors or warnings. **Example: SubjectNet** draws the net of `nets/SubjectNet.nb`: 2,048 slots, 32 ReLU units, two classes and 65,634 weights.
 
+## Sequence nets: transformers
+
+The editor also draws the transformers of `lossofgenerality/tensor-algebra-nets`. They are added from **+ Sequence element…**:
+
+| Element | What it is | Fields |
+|---|---|---|
+| Tokens | an input sequence of token indices (a port of the net) | name, vocabulary size |
+| Numbers per token | an input with a few numbers at every position | name, numbers per token |
+| Embedding | a learnt vector for each token, with positions added | width d; learnt, sinusoidal or no positions; longest sequence; shared weights (a name); multiply by √d |
+| Per-token layer | the same dense layer at every position | units, activation |
+| Add | adds sequences of one width, position by position | inputs |
+| Encoder | layers of multi-head self-attention and a feed-forward net, each with a residual connection and layer normalisation | layers, heads, feed-forward width, activation |
+| Decoder | layers of causal self-attention, cross-attention to the encoder (the lower input) and a feed-forward net | the same |
+| Pick, Pool | one position, or the mean, maximum or sum over positions | position; pooling |
+| Softmax per token | an output: a probability over the vocabulary at every position, optionally tied to shared weights, with label smoothing | name, vocabulary, tie, ε |
+| Softmax over positions | an output: which position | name |
+| Regression | an output of a few numbers, with a mean-squared loss | name, outputs, target port |
+
+**Teacher forcing.** Tokens that reach a Decoder's target input are its target. The decoder reads them without the last token, and the Softmax per token is scored on them without the first. The Softmax (classes) and Dense elements work after Pick or Pool.
+
+**Examples**, under Examples…:
+- owNet, the trained net of Unit 4;
+- tnParserNet, tnPolicyNet and tnValueNet, the three nets of the TensorNets design.
+
+They are drawn from the nets' definitions, in `tools/units/unit4.py` and `ff_tensornets_new.nb`.
+
+**The count.** The panel gives the learnt weights, and the number Wolfram's `Information[net, "ArraysTotalElementCount"]` reports. That number also counts fixed arrays: sinusoidal positions (2 × d for each embedding) and the label-smoothing table (V × V).
+
+**The code.** Diagram → Code writes a Wolfram notebook with:
+- the parts (multi-head attention, feed-forward, layer normalisation, embeddings, encoder and decoder), as in tensor-algebra-nets;
+- the net as a `NetGraph` of the drawing, with its input, output, target and loss ports;
+- a check of Wolfram's count against the drawing's;
+- a training cell for data of one's own, with the ports it expects.
+
+Python does not take sequence nets yet: our own Python code has no attention. The editor says so.
+
+**Tested** (24 November 2026):
+
+| Net | Learnt weights | Wolfram's count | The net built from its own definition |
+|---|---|---|---|
+| owNet | 59,722 | 59,950 (with 228 fixed numbers) | 59,950 |
+| tnParserNet | 1,422,870 | 1,422,870 | 1,422,870 |
+| tnPolicyNet | 611,468 | 611,468 | 611,468 |
+| tnValueNet | 626,819 | 626,819 | 626,819 |
+
+- **The generated nets:** all four built in the Wolfram kernel with exactly these counts.
+- **Training:** the generated owNet trained for three rounds on a small copy task in 2 seconds, giving probabilities of the right shape.
+- **The page:** in headless Chrome, every example opens and editing changes the count correctly (a third decoder layer gives 76,714), with no errors in the console.
+
 ## Wolfram or Python
 
 **Language**, at the top of the training settings, decides what Diagram → Code writes:
@@ -84,8 +133,8 @@ The training settings are epochs, batch size, learning rate (Adam), L2 and seed.
 
 - Version A for nets that branch, and dropout in version A.
 - ONNX between the two languages, as draft 8 describes.
-- Branching nets and dropout in the Python version.
-- **Code → Diagram:** drawing a net from its code.
+- Branching nets and dropout in the Python version, and sequence nets (attention) in our own Python code.
+- **Code → Diagram:** drawing a net from its code or from the trained net itself, such as owNet in `unit4_build_your_own_nets.nb`.
 
 By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)
 AI System Programming Group
