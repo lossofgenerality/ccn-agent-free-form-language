@@ -1,5 +1,8 @@
 # CCN Net Diagrams: the editor
 
+> **Moved (24 November 2026).** The editor now lives in the private toolkit `ccn-net-lab` (`editor/`) and is published at https://lossofgenerality.github.io/ccn-nets/editor/net-diagram-editor.html. The old address here forwards there, `?example=` included. This guide is kept for reference; the current copy is in `ccn-net-lab/editor/README.md`.
+
+
 `net-diagram-editor.html` is a single self-contained page that runs offline in a browser. Open it, draw a small neural net, and press **Diagram → Code**. The page writes a Wolfram notebook (`.nb`) or a Python script (`.py`); see "Wolfram or Python" below. The notebook builds the net drawn and trains it in two versions:
 
 - **A, our own code:** the forward pass, backpropagation and Adam are written out, and no Wolfram neural-net function is used.

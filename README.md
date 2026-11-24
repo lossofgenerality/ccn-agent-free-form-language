@@ -32,3 +32,7 @@ Wolfram code in this repo is delivered as notebooks (`.nb`), never as `.wl` file
 Files are updated in place; git keeps the history.
 
 © Computational Classnotes · CC BY-NC-SA 4.0
+
+## Nets and the lab (24 November 2026)
+
+The nets of this project are kept in the lab's standard layout, starting with `nets/subjectnet/` (structure, card, data, training script, recorded runs, analysis, visualisations, write-up). The general tools (the net-diagram editor, our own net code and the 3D viewers) moved to the private toolkit `ccn-net-lab`, and the published pages are in `ccn-nets`: https://lossofgenerality.github.io/ccn-nets/. The old editor and 3D addresses here forward there.

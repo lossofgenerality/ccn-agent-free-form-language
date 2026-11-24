@@ -1,0 +1,24 @@
+{
+ "Training data (parts)": 2000,
+ "Test data (parts)": 600,
+ "Loss, first and last epoch": [
+  0.0095,
+  0.0031
+ ],
+ "Gradient check, largest difference": 1.6605550268167235e-11,
+ "Test 1: templates with unseen words, accuracy": 0.995,
+ "Test 1: 'other' precision and recall": [
+  1.0,
+  0.9864253393665159
+ ],
+ "Test 2: paragraph parts, accuracy": "47 of 47",
+ "Test 3: hard sentences, accuracy": "21 of 24",
+ "Test 4: paragraphs ending right": "12 of 12 (without the check: 12)",
+ "Test 4: paragraphs right step by step": "12 of 12 (without the check: 9)",
+ "Numbers in the net": 65634,
+ "Parts wrong (paragraphs and hard sentences)": [
+  "the lantern drifts upward 2 metres",
+  "my heart sank 2 times that day",
+  "the cameraman slowly moves left"
+ ]
+}

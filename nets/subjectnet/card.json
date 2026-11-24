@@ -1,0 +1,27 @@
+{
+ "name": "SubjectNet",
+ "slug": "subjectnet",
+ "project": "free-form",
+ "status": "trained",
+ "purpose": "Decides whether a motion part of a sentence is about the object being moved (\"the drone should rise 4 metres\") or about something else (\"Mia turned to her brother\"), so that the motion reader keeps only the right parts.",
+ "structure": "five feature groups hashed into 2048 slots of 0 or 1 → 32 hidden units (ReLU) → softmax over object and other",
+ "numbers": 65634,
+ "editor_example": "subjectnet",
+ "viewer": "dense2",
+ "latest_run": "2026-11-24-seed1234",
+ "files": {
+  "diagram": "nets/subjectnet/net.json",
+  "writeup": "nets/subjectnet/writeup.md",
+  "viewer_data": "nets/subjectnet/viz/viewer-data.json",
+  "matrices": "nets/subjectnet/viz/matrices.png",
+  "downloads": [
+   "nets/SubjectNet.nb",
+   "nets/SubjectNet_as_matrices.nb"
+  ]
+ },
+ "headline": [
+  "Test 1: templates with unseen words, accuracy",
+  "Test 3: hard sentences, accuracy",
+  "Test 4: paragraphs right step by step"
+ ]
+}
