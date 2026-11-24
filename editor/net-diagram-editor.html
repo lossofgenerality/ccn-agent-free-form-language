@@ -452,12 +452,18 @@ function size(n) {
     case 'feature': return {w:120, h:30};
     case 'hash': return {w:60, h:Math.max(100, n.nIn * 24 + 20)};
     case 'slots': return {w:16, h:CELLS * 12};
-    case 'dense': { const k = Math.min(+n.units || 1, 8); return {w:22, h:(k - 1) * 28 + 22}; }
+    case 'dense': { const k = Math.min(+n.units || 1, 8); return {w:22, h:(k - 1) * 28 + 22 + (+n.units > 8 ? GAP : 0)}; }
     case 'dropout': return {w:84, h:30};
     case 'concat': return {w:14, h:Math.max(60, n.nIn * 26 + 12)};
     case 'softmax': { const k = Math.max(NetCore.classesOf(n).length, 1); return {w:54, h:(k - 1) * 64 + 56}; }
   }
   return {w:40, h:40};
+}
+// the centres of the circles drawn for a layer: at most eight, split four and four around a gap when there are more units
+const GAP = 22;
+function unitYs(n) {
+  const k = Math.min(+n.units || 1, 8), {h} = size(n), top = n.y - h / 2 + 11, more = +n.units > 8;
+  return Array.from({length:k}, (_, i) => top + i * 28 + (more && i >= 4 ? GAP : 0));
 }
 function portPos(n, side, i) {
   const {w, h} = size(n), k = side === 'in' ? NetCore.ins(n) : NetCore.outs(n);
@@ -468,7 +474,7 @@ function portPos(n, side, i) {
 function glyphs(n, side) {
   const {w, h} = size(n);
   if (n.kind === 'slots') return LIT.map(i => ({x:n.x + (side === 'out' ? w / 2 : -w / 2), y:n.y - h / 2 + i * 12 + 6}));
-  if (n.kind === 'dense') { const k = Math.min(+n.units || 1, 8); return Array.from({length:k}, (_, i) => ({x:n.x + (side === 'out' ? 9 : -9), y:n.y - h / 2 + 11 + i * 28})); }
+  if (n.kind === 'dense') return unitYs(n).map(y => ({x:n.x + (side === 'out' ? 9 : -9), y}));
   if (n.kind === 'softmax') { const k = NetCore.classesOf(n).length; return Array.from({length:k}, (_, i) => ({x:n.x - 12, y:n.y - h / 2 + 28 + i * 64})); }
   return null;
 }
@@ -511,10 +517,10 @@ function render() {
       el('rect', {x:x0, y:y0, width:w, height:h, fill:'none', stroke:C.grey, 'stroke-width':0.8, class:'outline'}, g);
       text(g, n.x, y0 + h + 16, `${fmt(n.size)} slots`);
     } else if (n.kind === 'dense') {
-      const k = Math.min(+n.units || 1, 8);
       el('rect', {x:x0 - 4, y:y0 - 4, width:w + 8, height:h + 8, rx:10, fill:'none', stroke:'transparent', class:'outline'}, g);
-      for (let i = 0; i < k; i++) el('circle', {cx:n.x, cy:y0 + 11 + i * 28, r:9, fill:C.tealF, stroke:C.teal, 'stroke-width':0.8}, g);
-      if (+n.units > 8) text(g, n.x + 20, n.y, '⋮', 'lbl');
+      for (const cy of unitYs(n)) el('circle', {cx:n.x, cy, r:9, fill:C.tealF, stroke:C.teal, 'stroke-width':0.8}, g);
+      // more units than are drawn: four circles, a gap with three dots, four circles
+      if (+n.units > 8) for (const dy of [-7, 0, 7]) el('circle', {cx:n.x, cy:n.y + dy, r:1.6, fill:C.teal}, g);
       text(g, n.x, y0 + h + 18, `${fmt(n.units)} ${n.act === 'None' ? 'linear' : n.act} units`);
     } else if (n.kind === 'dropout') {
       el('rect', {x:x0, y:y0, width:w, height:h, rx:4, fill:'#fff', stroke:C.grey, 'stroke-width':0.8, 'stroke-dasharray':'3 2', class:'outline'}, g);
