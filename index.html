@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CCN Agent Free-Form Language</title>
+<meta name="description" content="A spoken-style language for CCN's agents, with Wolfram and Python steps and the agents' own small neural nets.">
+<style>
+:root{--bg:#f6f4ee;--panel:#fffdf8;--ink:#1d1b16;--muted:#6b665a;--line:#d9d3c4;--accent:#7a2e1f;--accent2:#2d4a7a}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:48px 24px 32px}
+h1{font:600 40px/1.1 system-ui;margin:0 0 10px;letter-spacing:-.01em}
+.lede{font-size:18px;color:#3a362d;max-width:620px;margin:0 0 26px}
+.cta{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 36px}
+.btn{display:inline-block;padding:11px 18px;border-radius:8px;text-decoration:none;font-weight:600;border:1px solid var(--line);color:var(--ink);background:#fff}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:hover{filter:brightness(.96)}
+.hero{display:grid;grid-template-columns:1fr auto;gap:28px;align-items:center;margin-bottom:8px}
+.fig{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+h2{font:600 12px/1 system-ui;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:36px 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.card h3{margin:0 0 6px;font:600 17px/1.3 system-ui}
+.card p{margin:0 0 8px;color:#3a362d;font-size:14.5px}
+.card .links{font-size:14px}
+ul{padding-left:20px;margin:0}li{margin:4px 0}
+code{font:13.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:#efeadd;padding:1px 5px;border-radius:4px}
+footer{border-top:1px solid var(--line);margin-top:44px;padding-top:14px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+a{color:var(--accent2)}
+@media(max-width:680px){.hero{grid-template-columns:1fr}h1{font-size:32px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <h1>CCN Agent Free-Form Language</h1>
+      <p class="lede">A plain, spoken-style language for defining CCN's agents, with Wolfram and Python steps where precision is needed, and the agents' own small neural nets, trained outside any conversational-construct.</p>
+      <div class="cta">
+        <a class="btn primary" href="editor/net-diagram-editor.html">Open the net editor</a>
+        <a class="btn" href="https://github.com/lossofgenerality/ccn-agent-free-form-language">Source on GitHub</a>
+        <a class="btn" href="motion/MotionPhrases.nb">MotionPhrases.nb</a>
+        <a class="btn" href="nets/SubjectNet.nb">SubjectNet.nb</a>
+      </div>
+    </div>
+    <div class="fig" aria-label="SubjectNet: five feature groups hashed into slots, 32 ReLU units and a softmax over object and other">
+      <svg width="250" height="170" viewBox="0 0 250 170" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,sans-serif">
+        <g fill="#EEEDFE" stroke="#534AB7" stroke-width=".8">
+          <rect x="6" y="18" width="52" height="18" rx="3"/><rect x="6" y="44" width="52" height="18" rx="3"/><rect x="6" y="70" width="52" height="18" rx="3"/><rect x="6" y="96" width="52" height="18" rx="3"/><rect x="6" y="122" width="52" height="18" rx="3"/>
+        </g>
+        <g stroke="#73726c" stroke-width=".7" fill="none"><path d="M58 27 L72 60"/><path d="M58 53 L72 70"/><path d="M58 79 L72 79"/><path d="M58 105 L72 88"/><path d="M58 131 L72 98"/></g>
+        <polygon points="72,50 100,66 100,92 72,108" fill="#ecebe6" stroke="#73726c" stroke-width=".8"/>
+        <path d="M100 79 H110" stroke="#73726c" stroke-width="1"/>
+        <g stroke="#73726c" stroke-width=".5" fill="#fff"><rect x="112" y="31" width="9" height="12"/><rect x="112" y="43" width="9" height="12" fill="#EF9F27"/><rect x="112" y="55" width="9" height="12"/><rect x="112" y="67" width="9" height="12" fill="#EF9F27"/><rect x="112" y="79" width="9" height="12"/><rect x="112" y="91" width="9" height="12" fill="#EF9F27"/><rect x="112" y="103" width="9" height="12"/><rect x="112" y="115" width="9" height="12" fill="#EF9F27"/></g>
+        <g stroke="#EF9F27" stroke-width=".5" opacity=".55">
+          <path d="M121 49 L160 40 M121 49 L160 66 M121 49 L160 92 M121 49 L160 118 M121 73 L160 40 M121 73 L160 66 M121 73 L160 92 M121 73 L160 118 M121 97 L160 40 M121 97 L160 66 M121 97 L160 92 M121 97 L160 118 M121 121 L160 40 M121 121 L160 66 M121 121 L160 92 M121 121 L160 118"/>
+        </g>
+        <g stroke="#73726c" stroke-width=".5" opacity=".6"><path d="M172 40 L200 64 M172 66 L200 64 M172 92 L200 64 M172 118 L200 64 M172 40 L200 96 M172 66 L200 96 M172 92 L200 96 M172 118 L200 96"/></g>
+        <g fill="#E1F5EE" stroke="#0F6E56" stroke-width=".8"><circle cx="166" cy="40" r="6"/><circle cx="166" cy="66" r="6"/><circle cx="166" cy="92" r="6"/><circle cx="166" cy="118" r="6"/></g>
+        <rect x="196" y="50" width="22" height="60" rx="5" fill="none" stroke="#73726c" stroke-width=".7" stroke-dasharray="3 2"/>
+        <g fill="#FAECE7" stroke="#993C1D" stroke-width=".8"><circle cx="207" cy="64" r="7"/><circle cx="207" cy="96" r="7"/></g>
+        <g font-size="10" fill="#2c2c2a" font-weight="600"><text x="222" y="67">obj</text><text x="222" y="99">oth</text></g>
+        <text x="125" y="160" font-size="10" fill="#6b665a" text-anchor="middle">SubjectNet · 65,634 weights</text>
+      </svg>
+    </div>
+  </div>
+
+  <h2>Working parts</h2>
+  <div class="grid">
+    <div class="card"><h3>Net diagram editor</h3><p>Draw a small neural net in the browser: feature groups, a hash, slots, layers, dropout, joins and a softmax. <b>Diagram → Code</b> writes a Wolfram notebook that trains the net in our own code and with <code>NetTrain</code>.</p>
+      <div class="links"><a href="editor/net-diagram-editor.html">Open</a> · <a href="https://github.com/lossofgenerality/ccn-agent-free-form-language/blob/main/editor/README.md">How it works</a></div></div>
+    <div class="card"><h3>Motion phrases</h3><p>Reads phrases such as “move along the path while spinning counterclockwise and move upwards”, alone or inside paragraphs, into <code>RotationTransform</code> and <code>TranslationTransform</code>.</p>
+      <div class="links"><a href="motion/MotionPhrases.nb">Notebook</a> · <a href="tests/MotionPhrasesTest.nb">Tests</a> · <a href="tests/MotionPhrasesCorpus.nb">Corpus</a> · <a href="https://github.com/lossofgenerality/ccn-agent-free-form-language/blob/main/motion/Report.md">Report</a></div></div>
+    <div class="card"><h3>SubjectNet</h3><p>The first of the agents' own nets. It decides whether a motion part is about the object or about something else. It comes in two versions, our own code and Wolfram's, which agree on every decision.</p>
+      <div class="links"><a href="nets/SubjectNet.nb">Notebook</a> · <a href="https://github.com/lossofgenerality/ccn-agent-free-form-language/blob/main/nets/SubjectNetReport.md">Comparison</a></div></div>
+  </div>
+
+  <h2>The specifications (drafts for comment)</h2>
+  <ul>
+    <li><a href="https://github.com/lossofgenerality/ccn-agent-free-form-language/blob/main/drafts/06_Design_specification.md">Design specification</a>: spoken lines, Wolfram and Python steps, and the <code>uses Claude:</code> ledger</li>
+    <li><a href="https://github.com/lossofgenerality/ccn-agent-free-form-language/blob/main/drafts/07_Implementation_specification.md">Implementation specification</a>: the reader, the compiler and <code>AgentKernel</code></li>
+    <li><a href="https://github.com/lossofgenerality/ccn-agent-free-form-language/blob/main/drafts/08_The_agents_own_neural_nets.md">The agents' own neural nets</a>, trained in Wolfram and in Python and exchanged as ONNX</li>
+    <li><a href="https://github.com/lossofgenerality/ccn-agent-free-form-language/blob/main/drafts/09_Daemons.md">Daemons</a>: processes that watch CCN's systems and invoke agents or software</li>
+  </ul>
+  <p style="font-size:14px;color:var(--muted);margin-top:14px">Wolfram code here is delivered as notebooks (<code>.nb</code>). The documents open on GitHub.</p>
+
+  <footer><span>By Dara O Shayda and Hikari Noor Hoshino (星野ヌール), AI System Programming Group</span><span>© Computational Classnotes · CC BY-NC-SA 4.0</span></footer>
+</div>
+</body>
+</html>
