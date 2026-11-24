@@ -1,0 +1,169 @@
+{
+ "paragraphs": [
+  [
+   "Good evening everyone, and welcome to the harbour light show. Tonight's lead drone starts on the water's edge. First, the drone should rise 4 metres while spinning counterclockwise. The crowd usually cheers at this point, so give it a moment. Then it will move right 3 units. After that, orbit counterclockwise around the origin a half turn. Thank you for coming, and please mind the steps on your way out.",
+   "rise 4 while spinning counterclockwise then move right 3 then orbit counterclockwise around the origin a half turn",
+   {}
+  ],
+  [
+   "okay class um lets start in the middle of the floor. slide left 2 steps and turn a quarter turn clock wise. now slide write too steps. keep your arms loose its all about the rhythm. spin twice counter clock wise. great job everybody we will pick this up next week",
+   "slide left 2 while turning a quarter turn clockwise then slide right 2 then spin twice counterclockwise",
+   {}
+  ],
+  [
+   "Scene 4, the kitchen at night. The camera holds on the kettle for a beat. The teapot character hops off the counter: move forward 2 while rising 1. It wobbles, then rotates 180 degrees about the vertical axis to face the cat. The cat does not move. Finally the teapot slides back 2 units and pauses.",
+   "move forward 2 while rising 1 then rotate 180 degrees about the vertical axis then slide back 2",
+   {}
+  ],
+  [
+   "Cleaning report for Tuesday. At 9:02 the robot left its dock. It moved forward 3 metres, turned left, and moved forward 2 metres. It then spun around twice to free a tangled brush. The battery fell to 40 percent, so it went back 1 metre and stopped. No errors were logged.",
+   "move forward 3 then turn left then move forward 2 then spin twice then move back 1",
+   {
+    "frame": "Object"
+   }
+  ],
+  [
+   "Let's play Robot Says! Robot says: turn on your listening ears. Robot says: step forward 2 steps. Robot says: spin around once. Now, can you jump? Don't move left! Robot says: step back 1 step, then turn right.",
+   "step forward 2 then spin once then step back 1 then turn right",
+   {}
+  ],
+  [
+   "Welcome to the sculpture viewer. To inspect the statue, rotate it ninety degrees clockwise about the vertical axis. Next, roll it about the x-axis by one hundred and eighty degrees so you can see the base. If the lighting looks flat, turn off the shadows in the settings menu. Finally, lift it up two units and leave it there.",
+   "rotate 90 degrees clockwise about the z axis then spin 180 degrees about the x axis then rise 2",
+   {}
+  ],
+  [
+   "The installation fills the east gallery. Every evening the brass sphere rises 3 metres while it orbits counterclockwise around the centre of the room a full turn. Visitors often say the experience turns their sense of scale upside down. After the sphere settles, it spins slowly clockwise by 45 degrees and holds.",
+   "rise 3 while orbiting counterclockwise around the origin a full turn then spin clockwise by 45 degrees",
+   {}
+  ],
+  [
+   "Hi Sam, thanks for the notes from Monday. Going forward, let's keep the demo short. For the arm test, please move the gripper down 5 centimetres, then rotate it 30 degrees counterclockwise around the y axis, and then raise it back up 5. Sales numbers rose by 12 percent last quarter, which is great news. Let me know if anything falls behind. Best, Ana",
+   "move down 5 then rotate 30 degrees counterclockwise around the y axis then rise 5",
+   {}
+  ],
+  [
+   "The kite caught the wind at last. It climbed 6 metres, drifted left 2 metres, and then circled once around the old oak, counterclockwise as always. Mia laughed and turned to her brother. 'Look up!' she shouted, but he was already looking up at the kite.",
+   "rise 6 then drift left 2 then orbit counterclockwise around the origin once",
+   {}
+  ],
+  [
+   "Minutes of the planning meeting. We agreed to move on to the budget after lunch. Turnout rose to 80 percent this year. The team will circle back on the venue question next week. Please turn in your timesheets by Friday, and don't drop the ball on the client report. Overall, things are looking up.",
+   "",
+   {}
+  ],
+  [
+   "uh note to self for the drone demo um first it should go up three meters than spin counterclokwise twice and than move forward for units while going up won more unit okay that's it",
+   "go up 3 then spin counterclockwise twice then move forward 4 while going up 1",
+   {}
+  ],
+  [
+   "Calibrate the turntable before you start. Spin the model 360 degrees clockwise after raising it 1 unit. Before you photograph it, slide it right 2 units. Finally, wait.",
+   "rise 1 then spin 360 degrees clockwise then slide right 2 then pause",
+   {}
+  ]
+ ],
+ "about_something_else": [
+  "the camera holds on the kettle for a beat",
+  "visitors often say the experience turns their sense of scale",
+  "turned to her brother"
+ ],
+ "hard_sentences": [
+  [
+   "Once the bell rings, rotate the platform 90 degrees.",
+   "object"
+  ],
+  [
+   "As the lights dim, the puppet slides left 3 units.",
+   "object"
+  ],
+  [
+   "Our little rover should then climb 1 metre.",
+   "object"
+  ],
+  [
+   "Then, slowly, it pivots 30 degrees clockwise.",
+   "object"
+  ],
+  [
+   "The satellite, now free, spins twice.",
+   "object"
+  ],
+  [
+   "If all is well, lift the tray 2 units.",
+   "object"
+  ],
+  [
+   "Make the cube rise 2 metres.",
+   "object"
+  ],
+  [
+   "Have it turn right.",
+   "object"
+  ],
+  [
+   "The lantern drifts upward 2 metres.",
+   "object"
+  ],
+  [
+   "Gently move the vase forward 1 unit.",
+   "object"
+  ],
+  [
+   "The little boat rocks, then drifts left 2 units.",
+   "object"
+  ],
+  [
+   "After a short pause, the wheel rolls forward 3 metres.",
+   "object"
+  ],
+  [
+   "The pilot turned to the crowd.",
+   "other"
+  ],
+  [
+   "Grandma rose from her armchair.",
+   "other"
+  ],
+  [
+   "The headlines turned public opinion.",
+   "other"
+  ],
+  [
+   "Everyone in the room turned towards the door.",
+   "other"
+  ],
+  [
+   "The audience rose to their feet.",
+   "other"
+  ],
+  [
+   "My heart sank 2 times that day.",
+   "other"
+  ],
+  [
+   "The singer spun around to face the band.",
+   "other"
+  ],
+  [
+   "Her spirits lifted at once.",
+   "other"
+  ],
+  [
+   "Leo turned 40 last week.",
+   "other"
+  ],
+  [
+   "The detective circled back to the first clue.",
+   "other"
+  ],
+  [
+   "The cameraman slowly moves left.",
+   "other"
+  ],
+  [
+   "Dad stepped back from the edge.",
+   "other"
+  ]
+ ]
+}

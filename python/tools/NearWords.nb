@@ -1,0 +1,23 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+Notebook[{
+Cell["NearWords: the real words the Python reader must never correct", "Title"],
+
+Cell["python/ccn_nets/motion.py corrects a misspelt word to the nearest motion word, as MotionPhrases does, but never a real English word. Wolfram has a dictionary (DictionaryWordQ); Python has none. Only the real words that lie within the correction distance of a motion word matter, so this notebook lists exactly those from Wolfram's dictionary and writes them to python/ccn_nets/data/near_words.txt.\nEvaluate it again whenever the motion vocabulary ($MotionVocabulary) changes.", "Text"],
+
+Cell["By Dara O Shayda and Hikari Noor Hoshino (\:661f\:91ce\:30cc\:30fc\:30eb)\nAI System Programming Group", "Text"],
+
+Cell["Load the motion vocabulary", "Section"],
+
+Cell["here = Quiet@Check[NotebookDirectory[], Directory[]];\nNotebookEvaluate[FileNameJoin[{here, \"..\", \"..\", \"motion\", \"MotionPhrases.nb\"}]];\n(* the known words long enough to be correction candidates (5 letters or more) *)\nknown = Select[MotionPhrases`Private`knownWords[], StringLength[#] >= 5 &];\nLength[known]", "Code"],
+
+Cell["The real words near a motion word", "Section"],
+
+Cell["(* A word w is corrected when it is unknown, has 5 letters or more, is not a dictionary word, and lies within\n   1 edit (up to 6 letters) or 2 edits (longer) of a known word with the same first letter. So the dictionary\n   words that matter are exactly those with such a known word nearby. *)\ndict = DeleteDuplicates[Select[ToLowerCase /@ DictionaryLookup[], StringLength[#] >= 5 && StringMatchQ[#, RegularExpression[\"[a-z]+\"]] &]];\nbyFirst = GroupBy[known, StringTake[#, 1] &];\nnear = Select[Complement[dict, known], Function[w, With[{d = If[StringLength[w] <= 6, 1, 2], ks = Lookup[byFirst, StringTake[w, 1], {}]},\n     AnyTrue[ks, Abs[StringLength[#] - StringLength[w]] <= d && DamerauLevenshteinDistance[w, #] <= d &]]]];\nnearWords = Select[near, TrueQ[DictionaryWordQ[#]] &];\nLength[nearWords]", "Code"],
+
+Cell["Write the list for Python", "Section"],
+
+Cell["Export[FileNameJoin[{here, \"..\", \"ccn_nets\", \"data\", \"near_words.txt\"}],\n  Join[{\"# Real English words within the spelling-correction distance of a motion word, from Wolfram's DictionaryWordQ.\",\n    \"# motion.py never corrects these. Remake this list whenever the motion vocabulary changes (see python/README.md).\"}, nearWords], \"Lines\"]", "Code"],
+
+Cell["\:00a9 Computational Classnotes \:00b7 CC BY-NC-SA 4.0", "Text"]
+}]
