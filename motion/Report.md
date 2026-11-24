@@ -10,6 +10,85 @@
 - The outputs are exact (π, √2 and so on) wherever the phrase gives exact amounts. The default path and the moves give exact formulas in t.
 - Three kinds of phrase are read too literally (see "Where it falls short"). Each one is easy to fix.
 
+## How it was built
+
+**No neural nets, and no conversational-construct at run time.** The phrase is read by straightforward, rule-based interpretation of the string, and the meaning is built with Wolfram's own symbolic geometry. Every step is deterministic: the same phrase always gives the same transform, and every reading can be traced in the report.
+
+| Technique | Used for |
+|---|---|
+| Regular expressions (`StringReplace`, `StringSplit`, `StringCases` with `RegularExpression`) | tidying the phrase (*anti-clockwise* → *counterclockwise*, *x-axis* → *x axis*, ° → *degrees*, *and a half* → one token); splitting it into stages and parts; cutting parts into words and numbers |
+| Word lists (an Association, `$MotionVocabulary`) | the meaning of each word: verbs by kind (move, rise, sink, spin, orbit, follow, pause), directions as vectors, axes, the sense of turning, number words, units, and words to ignore |
+| Keyword rules, in a fixed order of priority (`Which`) | deciding what kind of motion each part is |
+| Exact arithmetic | amounts kept as exact numbers (π/2, 5π, 1/√2) rather than decimals |
+| `RotationTransform`, `TranslationTransform`, `AffineTransform`, composed with `Dot` | the motion of each stage as a transform in the stage time t |
+| `Inactive` and `Activate` | keeping each stage as a readable formula, and evaluating it only when asked |
+| `Simplify`, `Chop` and `TransformationMatrix` | the exact position and orientation where each stage ends, which the next stage starts from |
+| `Piecewise` | a path given as a list of points, as an exact function of t |
+| `Graphics3D`, `GeometricTransformation` and `Animate` | the pictures |
+| `VerificationTest` and `TestReport` | the 16 tests |
+
+The only place a net might later help is in reading free wording ("whirl", "zig-zag") that isn't in the word lists. That could be one of the agent's own small nets (draft 8), with the word lists kept as the check.
+
+## The algorithm, in pseudocode
+
+```
+READ-PHRASE(phrase, options):
+    text ← lower case of phrase
+    text ← tidy(text)                         -- spellings, units, "and a half", "x-axis"
+    stages ← split text at  then | and then | after that | followed by | "." | ";"
+    position ← (0, 0, 0);  orientation ← identity
+    for each stage:
+        parts ← split stage at  while | and | as | meanwhile | ","
+        motions ← [READ-PART(p) for each part p]      -- these happen at the same time
+        formula, position, orientation ← STAGE-TRANSFORM(motions, position, orientation)
+        add formula to formulas
+    return formulas, the motions, position and orientation at the end, and the report
+
+READ-PART(part):
+    words ← the words and numbers in part
+    amount ← AMOUNT(words)                    -- may be missing
+    kind ← the first that holds:
+        a pause word                          → pause
+        "path" or a follow word               → path
+        an orbit word, or "around/about" + "origin/centre/point"  → orbit
+        a spin word, or clockwise/counterclockwise without a move word  → spin
+        a move, rise or sink word, a direction or an axis  → move
+        otherwise                             → unknown
+    if kind is spin or orbit:
+        axis  ← the axis named, else z                    (noted as assumed)
+        sense ← +1 counterclockwise, −1 clockwise; for spin, left +1, right −1; else +1
+        angle ← amount × (π/180 for degrees | 1 for radians | 2π for turns/times)
+                if no amount: π/2 for "turn left/right", else 2π      (noted as assumed)
+        for an orbit, centre ← origin, or the "Centre" option
+    if kind is move:
+        v ← sum of the direction vectors named; else up for rise, down for sink,
+            the named axis, else forward                  (noted as assumed)
+        v ← v / |v|;  distance ← amount, else the "Step" option (1)
+    note every word not in the word lists as "not understood"
+    return kind and its values
+
+AMOUNT(words):
+    numbers ← digits and number words (a, one … ten, half, quarter, twice, full …)
+    if only "a"/"an" are present: missing
+    return the product of the numbers, + 1/2 for "and a half", + 1/4 for "and a quarter"
+
+STAGE-TRANSFORM(motions, P, M):                   -- t runs from 0 to 1 in this stage
+    offset(t) ← Σ over moves   distance · F(v) · t
+              + Σ over paths   F(path(t) − path(0))
+        where F(x) = M·x if the "Frame" option is "Object", else x
+    spin(t)   ← compose over spins   RotationTransform(sense · angle · t, axis)
+    orbit(t)  ← compose over orbits  RotationTransform(sense · angle · t, axis, centre)
+    T(t) ← orbit(t) · TranslationTransform(P + offset(t)) · spin(t) · AffineTransform(M)
+        -- the object turns about its own centre, is moved to its place,
+        -- then is carried round any orbit centre
+    from T(1): P ← its translation part, M ← its rotation part (simplified exactly)
+    return T (kept inactive, as a formula), P, M
+
+TRANSFORM-AT(formulas, t):                         -- t from 0 to 1 over the whole phrase
+    n ← number of stages;  k ← ⌊t·n⌋ + 1, at most n;  s ← t·n − (k − 1)
+    return the activated formula of stage k at stage time s
+```
+
 ## Output: ten phrases
 
 | Phrase | Read as | Ends at | Facing |
