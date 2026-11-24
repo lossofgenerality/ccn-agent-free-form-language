@@ -730,18 +730,18 @@ ccnEmbed[d_, v_, pos_, maxLen_, scale_, shared_] := Module[{layers, conns, last 
       N('d', {kind:'dense', units:32, act:'ReLU', x:470, y:148}); N('o', {kind:'softmax', classes:'object, other', x:610, y:148});
       FEATURE_KEYS.forEach((k, i) => W('f' + i, 'h', i)); W('h', 's'); W('s', 'd'); W('d', 'o');
     } else if (key === 'ownet') {
-      N('tS', {kind:'tokens', name:'Input', vocab:10, sample:'( a ⨁ b )', x:90, y:110}); N('tT', {kind:'tokens', name:'Target', vocab:10, sample:'s ⨁ ⨂ a c', x:90, y:330});
+      N('tS', {kind:'tokens', name:'Input', vocab:10, sample:'( a ⨁ b )', x:90, y:320}); N('tT', {kind:'tokens', name:'Target', vocab:10, sample:'s ⨁ ⨂ a c', x:90, y:100});
       const e = {kind:'embed', d:32, pos:'sinusoidal', maxLen:96, scale:true, shared:'W'};
-      N('eS', {...e, x:260, y:110}); N('eT', {...e, x:260, y:330});
-      N('en', {kind:'encoder', layers:2, heads:4, dff:128, act:'ReLU', x:440, y:110});
-      N('de', {kind:'decoder', layers:2, heads:4, dff:128, act:'ReLU', x:620, y:330});
-      N('so', {kind:'seqsoftmax', name:'Probabilities', vocab:10, tie:'W', smoothing:0.1, x:800, y:330});
+      N('eS', {...e, x:250, y:320}); N('eT', {...e, x:250, y:100});
+      N('en', {kind:'encoder', layers:2, heads:4, dff:128, act:'ReLU', x:420, y:320});
+      N('de', {kind:'decoder', layers:2, heads:4, dff:128, act:'ReLU', x:620, y:200});
+      N('so', {kind:'seqsoftmax', name:'Probabilities', vocab:10, tie:'W', smoothing:0.1, x:820, y:290});
       W('tS', 'eS'); W('tT', 'eT'); W('eS', 'en'); W('eT', 'de', 0); W('en', 'de', 1); W('de', 'so');
     } else if (key === 'tnparser') {
-      N('tS', {kind:'tokens', name:'Input', vocab:32, sample:'( x1 ⨁ x2 )', x:90, y:110}); N('tT', {kind:'tokens', name:'Target', vocab:22, sample:'s P S x1 x2', x:90, y:330});
-      N('eS', {kind:'embed', ...tnEmb, x:260, y:110}); N('eT', {kind:'embed', ...tnEmb, x:260, y:330});
-      N('en', {kind:'encoder', ...tnEnc, x:440, y:110}); N('de', {kind:'decoder', ...tnEnc, x:620, y:330});
-      N('so', {kind:'seqsoftmax', name:'Probabilities', vocab:22, tie:'', smoothing:0, x:800, y:330});
+      N('tS', {kind:'tokens', name:'Input', vocab:32, sample:'( x1 ⨁ x2 )', x:90, y:320}); N('tT', {kind:'tokens', name:'Target', vocab:22, sample:'s P S x1 x2', x:90, y:100});
+      N('eS', {kind:'embed', ...tnEmb, x:240, y:320}); N('eT', {kind:'embed', ...tnEmb, x:240, y:100});
+      N('en', {kind:'encoder', ...tnEnc, x:400, y:320}); N('de', {kind:'decoder', ...tnEnc, x:600, y:200});
+      N('so', {kind:'seqsoftmax', name:'Probabilities', vocab:22, tie:'', smoothing:0, x:800, y:290});
       W('tS', 'eS'); W('tT', 'eT'); W('eS', 'en'); W('eT', 'de', 0); W('en', 'de', 1); W('de', 'so');
     } else if (key === 'tnpolicy') {
       N('t', {kind:'tokens', name:'Input', vocab:22, sample:'E P S x1 x2', x:90, y:200}); N('e', {kind:'embed', ...tnEmb, x:260, y:200});
