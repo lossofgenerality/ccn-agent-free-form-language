@@ -12,7 +12,7 @@ and turns each part into a Wolfram Language `RotationTransform` or `TranslationT
 ## Use
 
 ```wolfram
-Get["MotionPhrases.wl"]          (* from this folder, or Get[CloudObject["…/MotionPhrases.wl"]] *)
+NotebookEvaluate["<folder>/MotionPhrases.nb"]   (* or open MotionPhrases.nb and evaluate it *)
 
 phrase = "move along the path while spinning counterclockwise and move upwards";
 MotionReport[phrase]             (* how each part was read, what was assumed, what wasn't understood *)
@@ -73,7 +73,9 @@ Words that aren't understood are listed in the report and ignored, as with free 
 
 ## Tests
 
-`tests/MotionPhrasesTest.wl`: 16 tests (all passing in Wolfram 15). Run them with `RunProcess[{"wolframscript", "-file", …}]`, or evaluate the file in a notebook after loading the package.
+`tests/MotionPhrasesTest.nb`: 16 tests (all passing in Wolfram 15). Open it and evaluate it: its first cell loads `MotionPhrases.nb` from the `motion` folder, and its last cell shows the results.
+
+The package is a notebook, `MotionPhrases.nb`: its cells are initialisation (Code) cells, so evaluating the notebook loads the package. To use it in the cloud, put the notebook in your cloud and `NotebookEvaluate` it there.
 
 ---
 

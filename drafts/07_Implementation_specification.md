@@ -2,7 +2,7 @@
 
 *Interim draft for comment, 21 November 2026.*
 
-How the design in file 6 is built. Wolfram code is delivered as APIFunctions and libraries for you to CloudSave and CloudDeploy. Nothing here uses a fixed disk path, and no file name carries a version number.
+How the design in file 6 is built. Wolfram code is delivered as notebooks (`.nb`), never `.wl` files: libraries and APIFunctions for you to CloudSave and CloudDeploy. Nothing here uses a fixed disk path, and no file name carries a version number.
 
 ## 1. Proposed repo layout
 
@@ -17,19 +17,19 @@ daemons/                     daemon scripts, CCN only (file 9)
 systems/                     CCN's systems and their components, which daemons attach to
   eye-witness.agent
 compiler/
-  AgentScript.wl             Wolfram: read, merge layers, compile, report
+  AgentScript.nb             Wolfram: read, merge layers, compile, report
   agent_script/              Python: the same reader and compiler
 policy/
   policy.schema.json         the compiled policy, shared by both targets
 kernel/
-  AgentKernel.wl             the Wolfram target: one APIFunction with modes
+  AgentKernel.nb             the Wolfram target: one APIFunction with modes
 host/
   python/                    the Python target: a small web service
 nets/
-  NetSpec.wl                 own nets: description → NetChain, training, ONNX
+  NetSpec.nb                 own nets: description → NetChain, training, ONNX
   netspec.py                 own nets: description → torch.nn, training, ONNX
 tests/
-  AgentScriptTest.wl         Wolfram tests, with stand-ins for cloud, Claude and GitHub
+  AgentScriptTest.nb         Wolfram tests, with stand-ins for cloud, Claude and GitHub
   test_agent_script.py       the same cases, in Python
   cases/                     behaviour tests written once, run on both targets
 ```
@@ -136,14 +136,14 @@ The Python host is a small web service (Vercel works, as in the CCN Action Gatew
 
 ## 6. Tests
 
-- **Wolfram:** `AgentScriptTest.wl`, in the style of `EyeWitnessKernelTest.wl`, with stand-ins for the cloud, Claude and GitHub. Run with `RunProcess[{"wolframscript", "-file", …}]`.
+- **Wolfram:** `AgentScriptTest.nb`, with stand-ins for the cloud, Claude and GitHub as in today's eye-witness kernel tests. Open it and evaluate it; its last cell shows the results.
 - **Python:** `pytest`, with the same stand-ins.
 - **Both targets:** each file in `tests/cases/` holds a script, a question, the stand-in reply, and the expected outcome (blocked, answered, which rule applied, the ledger record). Both runtimes must give the same outcome.
 - **First acceptance test:** today's eye-witness assistant written as `ccn-base.agent` plus `eye-witness.agent` must give exactly today's behaviour on the current kernel tests (file 4, step 1).
 
 ## 7. Delivery
 
-- **Wolfram:** `AgentScript.wl` and `NetSpec.wl` as libraries you CloudSave, and `AgentKernel.wl` as an APIFunction you CloudDeploy. Each has its deploy steps at the top, as `CameraKernel.wl` does.
+- **Wolfram:** notebooks only. `AgentScript.nb` and `NetSpec.nb` are libraries you CloudSave, and `AgentKernel.nb` is an APIFunction you CloudDeploy. Each has its deploy steps in its first cells, as Composite Eye's kernel has them at the top.
 - **Python:** a package with a `requirements.txt`: `onnxruntime` for the host, and `torch` and `onnx` only for training.
 - **Each agent folder** gets a README in the Composite Eye layout.
 

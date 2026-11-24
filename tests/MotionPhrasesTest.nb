@@ -1,0 +1,27 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+Notebook[{
+Cell["Motion phrases: tests", "Title"],
+
+Cell["Tests for motion/MotionPhrases.nb.", "Text"],
+
+Cell["Run: open this notebook and evaluate it (Evaluation > Evaluate Notebook). The first cell loads\nMotionPhrases.nb from the motion folder next to this one; the last cell shows the results.", "Text"],
+
+Cell["Load the package", "Section"],
+
+Cell["testsFolder = Quiet@Check[NotebookDirectory[], Directory[]];\nNotebookEvaluate[FileNameJoin[{testsFolder, \"..\", \"motion\", \"MotionPhrases.nb\"}]];", "Code"],
+
+Cell["The tests", "Section"],
+
+Cell["centre[T_] := T[{0, 0, 0}];\nturnOf[T_] := TransformationMatrix[T][[1 ;; 3, 1 ;; 3]];\nnear[a_, b_] := Max[Abs[N[Flatten[{a - b}]]]] < 10^-9;\nrz[a_] := RotationMatrix[a, {0, 0, 1}];", "Code"],
+
+Cell["example = \"move along the path while spinning counterclockwise and move upwards\";", "Code"],
+
+Cell["motionTests = {\n  VerificationTest[MotionParse[example][\"Stages\"][[All, All, \"Kind\"]], {{\"path\", \"spin\", \"translate\"}},\n   TestID -> \"example: three parts, at the same time\"],\n  VerificationTest[With[{T = MotionTransform[example, 1]}, near[centre[T], {3, 0, 1}] && near[turnOf[T], IdentityMatrix[3]]],\n   True, TestID -> \"example: end of the default path, one unit up, one full turn\"],\n  VerificationTest[With[{T = MotionTransform[example, 1/4]}, near[centre[T], {3/4, 1, 1/4}] && near[turnOf[T], rz[Pi/2]]],\n   True, TestID -> \"example: a quarter of the way\"],\n  VerificationTest[near[turnOf[MotionTransform[\"spin clockwise 90 degrees\", 1]], rz[-Pi/2]],\n   True, TestID -> \"clockwise, in degrees\"],\n  VerificationTest[MotionParse[\"spin two and a half turns about the x axis\"][\"Stages\"][[1, 1, {\"Angle\", \"Axis\"}]],\n   <|\"Angle\" -> 5 Pi, \"Axis\" -> {1, 0, 0}|>, TestID -> \"two and a half turns, x axis\"],\n  VerificationTest[near[centre[MotionTransform[\"rise 3\", 1]], {0, 0, 3}], True, TestID -> \"rise, with a distance\"],\n  VerificationTest[near[centre[MotionTransform[\"move up and left\", 1]], {-1, 0, 1}], True,\n   TestID -> \"two moves at the same time\"],\n  VerificationTest[\n   With[{T = MotionTransform[\"move up 2 units then turn left then move forward\", 1]},\n    near[centre[T], {0, 1, 2}] && near[turnOf[T], rz[Pi/2]]],\n   True, TestID -> \"three stages, world frame\"],\n  VerificationTest[\n   near[centre[MotionTransform[\"move up 2 units then turn left then move forward\", 1, \"Frame\" -> \"Object\"]], {-1, 0, 2}],\n   True, TestID -> \"three stages, the object's own frame\"],\n  VerificationTest[\n   With[{T = MotionTransform[\"move right 2 then orbit counterclockwise around the origin a half turn\", 1]},\n    near[centre[T], {-2, 0, 0}] && near[turnOf[T], rz[Pi]]],\n   True, TestID -> \"orbit about the origin\"],\n  VerificationTest[\n   {near[centre[MotionTransform[\"follow the path\", 1/2, \"Path\" -> {{0, 0}, {1, 0}, {1, 1}}]], {1, 0, 0}],\n    near[centre[MotionTransform[\"follow the path\", 1, \"Path\" -> {{0, 0}, {1, 0}, {1, 1}}]], {1, 1, 0}]},\n   {True, True}, TestID -> \"a path given as points\"],\n  VerificationTest[\n   Simplify[turnOf[MotionTransform[\"spin clockwise\", tt]] - RotationMatrix[-2 Pi tt, {0, 0, 1}]],\n   ConstantArray[0, {3, 3}], TestID -> \"symbolic time\"],\n  VerificationTest[First[MotionFormula[\"spin counterclockwise\"]],\n   Inactive[RotationTransform][2 Pi \\[FormalT], {0, 0, 1}], TestID -> \"the formula is a RotationTransform\"],\n  VerificationTest[StringContainsQ[MotionReport[\"move up slowly\"], \"not understood, ignored: slowly\"], True,\n   TestID -> \"the report names words it did not understand\"],\n  VerificationTest[near[centre[MotionTransform[\"dance wildly\", 1]], {0, 0, 0}], True,\n   TestID -> \"nothing understood: the object stays\"],\n  VerificationTest[Head[MotionPlot[example]], Graphics3D, TestID -> \"MotionPlot draws\"]\n};", "Code"],
+
+Cell["Results", "Section"],
+
+Cell["motionReport = TestReport[motionTests];\nPrint[\"MotionPhrases tests: \", motionReport[\"TestsSucceededCount\"], \" passed, \", motionReport[\"TestsFailedCount\"], \" failed\"];\nScan[Print[\"FAILED: \", #[\"TestID\"], \"  got \", #[\"ActualOutput\"]] &, Values[Join[motionReport[\"TestsFailedWrongResults\"], motionReport[\"TestsFailedWithMessages\"], motionReport[\"TestsFailedWithErrors\"]]]];\nmotionReport", "Code"],
+
+Cell["\:00a9 Computational Classnotes \:00b7 CC BY-NC-SA 4.0", "Text"]
+}]
