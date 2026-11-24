@@ -45,6 +45,12 @@ The editor also draws the transformers of `lossofgenerality/tensor-algebra-nets`
 | Softmax over positions | an output: which position | name |
 | Regression | an output of a few numbers, with a mean-squared loss | name, outputs, target port |
 
+**The pictures.** Each sequence element is drawn as what it does, in the style of SubjectNet's elements, with its settings in grey labels underneath:
+- tokens as a row of cells (the sample tokens can be set);
+- an embedding as columns of vectors, with a wave for sinusoidal positions or small squares for learnt ones, and a badge for shared weights;
+- the encoder and decoder as stacked layers with fans of attention and feed-forward blocks;
+- the outputs as probability bars or value bars.
+
 **Teacher forcing.** Tokens that reach a Decoder's target input are its target. The decoder reads them without the last token, and the Softmax per token is scored on them without the first. The Softmax (classes) and Dense elements work after Pick or Pool.
 
 **Examples**, under Examples…:

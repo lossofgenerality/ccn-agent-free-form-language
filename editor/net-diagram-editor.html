@@ -730,7 +730,7 @@ ccnEmbed[d_, v_, pos_, maxLen_, scale_, shared_] := Module[{layers, conns, last 
       N('d', {kind:'dense', units:32, act:'ReLU', x:470, y:148}); N('o', {kind:'softmax', classes:'object, other', x:610, y:148});
       FEATURE_KEYS.forEach((k, i) => W('f' + i, 'h', i)); W('h', 's'); W('s', 'd'); W('d', 'o');
     } else if (key === 'ownet') {
-      N('tS', {kind:'tokens', name:'Input', vocab:10, x:90, y:110}); N('tT', {kind:'tokens', name:'Target', vocab:10, x:90, y:330});
+      N('tS', {kind:'tokens', name:'Input', vocab:10, sample:'( a ⨁ b )', x:90, y:110}); N('tT', {kind:'tokens', name:'Target', vocab:10, sample:'s ⨁ ⨂ a c', x:90, y:330});
       const e = {kind:'embed', d:32, pos:'sinusoidal', maxLen:96, scale:true, shared:'W'};
       N('eS', {...e, x:260, y:110}); N('eT', {...e, x:260, y:330});
       N('en', {kind:'encoder', layers:2, heads:4, dff:128, act:'ReLU', x:440, y:110});
@@ -738,18 +738,18 @@ ccnEmbed[d_, v_, pos_, maxLen_, scale_, shared_] := Module[{layers, conns, last 
       N('so', {kind:'seqsoftmax', name:'Probabilities', vocab:10, tie:'W', smoothing:0.1, x:800, y:330});
       W('tS', 'eS'); W('tT', 'eT'); W('eS', 'en'); W('eT', 'de', 0); W('en', 'de', 1); W('de', 'so');
     } else if (key === 'tnparser') {
-      N('tS', {kind:'tokens', name:'Input', vocab:32, x:90, y:110}); N('tT', {kind:'tokens', name:'Target', vocab:22, x:90, y:330});
+      N('tS', {kind:'tokens', name:'Input', vocab:32, sample:'( x1 ⨁ x2 )', x:90, y:110}); N('tT', {kind:'tokens', name:'Target', vocab:22, sample:'s P S x1 x2', x:90, y:330});
       N('eS', {kind:'embed', ...tnEmb, x:260, y:110}); N('eT', {kind:'embed', ...tnEmb, x:260, y:330});
       N('en', {kind:'encoder', ...tnEnc, x:440, y:110}); N('de', {kind:'decoder', ...tnEnc, x:620, y:330});
       N('so', {kind:'seqsoftmax', name:'Probabilities', vocab:22, tie:'', smoothing:0, x:800, y:330});
       W('tS', 'eS'); W('tT', 'eT'); W('eS', 'en'); W('eT', 'de', 0); W('en', 'de', 1); W('de', 'so');
     } else if (key === 'tnpolicy') {
-      N('t', {kind:'tokens', name:'Input', vocab:22, x:90, y:200}); N('e', {kind:'embed', ...tnEmb, x:260, y:200});
+      N('t', {kind:'tokens', name:'Input', vocab:22, sample:'E P S x1 x2', x:90, y:200}); N('e', {kind:'embed', ...tnEmb, x:260, y:200});
       N('en', {kind:'encoder', ...tnEnc, x:440, y:200}); N('pk', {kind:'pick', position:1, x:600, y:110});
       N('ru', {kind:'softmax', name:'Rule', classes:TN_RULES, x:740, y:110}); N('no', {kind:'possoftmax', name:'Node', x:640, y:330});
       W('t', 'e'); W('e', 'en'); W('en', 'pk'); W('pk', 'ru'); W('en', 'no');
     } else if (key === 'tnvalue') {
-      N('t', {kind:'tokens', name:'Input', vocab:20, x:90, y:110}); N('nu', {kind:'numbers', name:'Dims', size:1, x:90, y:290});
+      N('t', {kind:'tokens', name:'Input', vocab:20, sample:'P S x1 x2 x3', x:90, y:110}); N('nu', {kind:'numbers', name:'Dims', size:1, x:90, y:290});
       N('e', {kind:'embed', ...tnEmb, x:260, y:110}); N('pr', {kind:'project', units:128, act:'None', x:260, y:290});
       N('ad', {kind:'add', nIn:2, x:380, y:200}); N('en', {kind:'encoder', ...tnEnc, x:500, y:200});
       N('po', {kind:'pool', op:'Mean', x:650, y:200}); N('de', {kind:'dense', units:128, act:'GELU', x:760, y:200});
@@ -916,17 +916,7 @@ function size(n) {
     case 'dropout': return {w:84, h:30};
     case 'concat': return {w:14, h:Math.max(60, n.nIn * 26 + 12)};
     case 'softmax': { const all = NetCore.classesOf(n).length, k = Math.min(Math.max(all, 1), 6); return {w:54, h:(k - 1) * (all > 6 ? 34 : 64) + 56}; }
-    case 'tokens': case 'numbers': return {w:124, h:46};
-    case 'embed': return {w:150, h:64};
-    case 'project': return {w:112, h:46};
-    case 'add': return {w:34, h:34};
-    case 'encoder': return {w:150, h:72};
-    case 'decoder': return {w:150, h:84};
-    case 'seqsoftmax': return {w:150, h:76};
-    case 'pick': return {w:90, h:46};
-    case 'pool': return {w:84, h:56};
-    case 'possoftmax': return {w:132, h:54};
-    case 'regression': return {w:120, h:54};
+    default: if (typeof SEQ_SIZE !== 'undefined' && SEQ_SIZE[n.kind]) return SEQ_SIZE[n.kind](n);
   }
   return {w:40, h:40};
 }
@@ -969,27 +959,111 @@ function box(g, x0, y0, w, h, [fill, stroke], lines, opts = {}) {
   const cy = y0 + h / 2, step = 15, top = cy - (lines.length - 1) * step / 2;
   lines.forEach((t, i) => text(g, x0 + w / 2, top + i * step, t, 'lbl', {fill:stroke, ...(i === 0 ? {'font-weight':600} : {})}));
 }
+// the pictures of the sequence elements: what each one does, drawn; its settings in grey labels underneath
+const PAL = {tok:{f:'#EEEDFE', s:'#534AB7', t:'#3C3489', col:'#CECBF6'}, num:{f:'#FAEEDA', s:'#854F0B', t:'#633806'},
+  enc:{f:'#E1F5EE', s:'#0F6E56', c:'#9FE1CB'}, dec:{f:'#FBEAF0', s:'#993556', c:'#F4C0D1'}, out:{f:'#FAECE7', s:'#993C1D', bar:'#F0997B'},
+  grey:{f:'#ecebe6', s:'#73726c', c:'#d3d1c7'}};
+const slabCount = n => Math.min(Math.max(+n.layers || 1, 1), 3);
+const SEQ_SIZE = {
+  tokens:() => ({w:94, h:20}), numbers:() => ({w:94, h:20}), embed:n => ({w:n.shared || n.scale ? 84 : 60, h:72}), project:() => ({w:70, h:56}), add:() => ({w:34, h:34}),
+  encoder:n => ({w:116, h:slabCount(n) * 34 + (slabCount(n) - 1) * 8}), decoder:n => ({w:116, h:Math.max(2, slabCount(n)) * 34 + (Math.max(2, slabCount(n)) - 1) * 8}),
+  seqsoftmax:() => ({w:68, h:70}), pick:() => ({w:94, h:40}), pool:() => ({w:94, h:52}), possoftmax:() => ({w:96, h:56}), regression:() => ({w:76, h:56}),
+};
+function sampleTokens(n) {
+  const given = String(n.sample || '').trim();
+  const t = given ? given.split(/\s+/) : /target/i.test(n.name || '') ? ['s', 'a', 'b', 'c', '/s'] : ['t1', 't2', 't3', 't4', 't5'];
+  return t.slice(0, 5).map(x => x.length > 2 ? x.slice(0, 2) : x);
+}
+function labelsBelow(g, n, y, lines) { lines.filter(Boolean).forEach((s, i) => text(g, n.x, y + 16 + i * 15, s)); }
+function selectable(g, x0, y0, w, h) { el('rect', {x:x0 - 4, y:y0 - 4, width:w + 8, height:h + 8, rx:8, fill:'none', stroke:'transparent', class:'outline'}, g); }
+function fan(g, x, yTop, yBottom, spread, stroke, k = 5) {
+  for (let i = 0; i < k; i++) el('line', {x1:x - spread / 2 + i * spread / (k - 1), y1:yBottom, x2:x, y2:yTop, stroke, 'stroke-width':0.7, opacity:0.85}, g);
+}
+function ffBlock(g, x, y, fill, stroke) { for (const [dx, dy] of [[0, 0], [10, 0], [0, 11], [10, 11]]) el('circle', {cx:x + dx, cy:y + dy, r:4, fill, stroke, 'stroke-width':0.5}, g); }
+function outLabel(g, n, x0, w) { arrowOut(g, x0 + w, n.y); text(g, x0 + w + 26, n.y, NetCore.outName(n), 'lblb'); }
+
 function drawSeq(g, n, x0, y0, w, h) {
-  const name = NetCore.outName(n);
+  selectable(g, x0, y0, w, h);
   switch (n.kind) {
-    case 'tokens': box(g, x0, y0, w, h, SEQC.tok, [`Tokens \u201c${n.name}\u201d`, `vocabulary ${fmt(n.vocab)}`]); break;
-    case 'numbers': box(g, x0, y0, w, h, SEQC.num, [`Numbers \u201c${n.name}\u201d`, `${n.size} per token`]); break;
-    case 'embed': box(g, x0, y0, w, h, SEQC.tok, [`Embedding \u00b7 d ${n.d}`, n.pos === 'learnt' ? `learnt positions (${n.maxLen})` : n.pos === 'sinusoidal' ? 'sinusoidal positions' : 'no positions',
-      [n.shared ? `shares \u201c${n.shared}\u201d` : '', n.scale ? '\u00d7 \u221ad' : ''].filter(Boolean).join(' \u00b7 ') || 'own weights']); break;
-    case 'project': box(g, x0, y0, w, h, SEQC.grey, ['Per token', `${n.units} ${n.act === 'None' ? 'linear' : n.act}`]); break;
-    case 'add': el('circle', {cx:n.x, cy:n.y, r:16, fill:SEQC.grey[0], stroke:SEQC.grey[1], 'stroke-width':0.8, class:'outline'}, g); text(g, n.x, n.y, '+', 'lblb', {'text-anchor':'middle'}); break;
-    case 'encoder': box(g, x0, y0, w, h, SEQC.enc, ['Encoder', `${n.layers} \u00d7 (attention + FF)`, `${n.heads} heads \u00b7 FF ${n.dff} ${n.act}`], {stack:+n.layers}); break;
-    case 'decoder': box(g, x0, y0, w, h, SEQC.dec, ['Decoder', `${n.layers} \u00d7 (self, cross + FF)`, `${n.heads} heads \u00b7 FF ${n.dff} ${n.act}`], {stack:+n.layers});
-      // which input is which: the target above the box, the memory below it, clear of the wires
-      text(g, x0 + 4, y0 - 9, '\u2193 target (upper input)', 'lbl', {'text-anchor':'start', fill:SEQC.dec[1]});
-      text(g, x0 + 4, y0 + h + 13, '\u2191 memory (lower input)', 'lbl', {'text-anchor':'start', fill:SEQC.dec[1]}); break;
-    case 'seqsoftmax': box(g, x0, y0, w, h, SEQC.out, ['Softmax per token', `${fmt(n.vocab)} tokens`, n.tie ? `tied to \u201c${n.tie}\u201d` : 'own weights', +n.smoothing > 0 ? `label smoothing ${n.smoothing}` : 'no smoothing'], {dashed:true});
-      arrowOut(g, x0 + w, n.y); text(g, x0 + w + 26, n.y, name, 'lblb'); break;
-    case 'pick': box(g, x0, y0, w, h, SEQC.grey, ['Pick', `position ${n.position}`]); break;
-    case 'pool': el('polygon', {points:`${x0},${y0} ${x0 + w},${n.y - h * 0.25} ${x0 + w},${n.y + h * 0.25} ${x0},${y0 + h}`, fill:SEQC.grey[0], stroke:SEQC.grey[1], 'stroke-width':0.8, class:'outline'}, g);
-      text(g, n.x - 4, n.y, `${n.op || 'Mean'} pool`, 'lbl', {fill:SEQC.grey[1]}); break;
-    case 'possoftmax': box(g, x0, y0, w, h, SEQC.out, ['Softmax over', 'positions'], {dashed:true}); arrowOut(g, x0 + w, n.y); text(g, x0 + w + 26, n.y, name, 'lblb'); break;
-    case 'regression': box(g, x0, y0, w, h, SEQC.out, ['Regression', `${n.outputs} outputs`], {dashed:true}); arrowOut(g, x0 + w, n.y); text(g, x0 + w + 26, n.y, name, 'lblb'); break;
+    case 'tokens': case 'numbers': {
+      const P = n.kind === 'tokens' ? PAL.tok : PAL.num;
+      const cells = n.kind === 'tokens' ? sampleTokens(n) : ['.4', '0', '1.6', '0', '2.3'];
+      cells.forEach((c, i) => { const x = x0 + i * 19;
+        el('rect', {x, y:y0 + 1, width:17, height:17, rx:2, fill:P.f, stroke:P.s, 'stroke-width':0.8}, g);
+        text(g, x + 8.5, y0 + 10, c, 'lbl', {fill:P.t || P.s, 'font-size':10}); });
+      labelsBelow(g, n, y0 + h, [n.kind === 'tokens' ? `${n.name} · ${fmt(n.vocab)} tokens` : `${n.name} · ${n.size} per token`]);
+      break; }
+    case 'embed': {
+      const P = PAL.tok, top = y0 + 14;
+      for (let i = 0; i < 5; i++) el('rect', {x:x0 + i * 12, y:top, width:8, height:56, fill:P.col, stroke:P.s, 'stroke-width':0.6}, g);
+      if (n.pos === 'sinusoidal') el('path', {d:`M${x0},${y0 + 7} Q${x0 + 6},${y0 - 1} ${x0 + 12},${y0 + 7} T${x0 + 24},${y0 + 7} T${x0 + 36},${y0 + 7} T${x0 + 48},${y0 + 7} T${x0 + 56},${y0 + 7}`, fill:'none', stroke:PAL.num.s, 'stroke-width':1}, g);
+      else if (n.pos === 'learnt') for (let i = 0; i < 5; i++) el('rect', {x:x0 + i * 12 + 1, y:y0 + 3, width:6, height:6, rx:1, fill:PAL.num.f, stroke:PAL.num.s, 'stroke-width':0.5}, g);
+      if (n.shared) { el('circle', {cx:x0 + 74, cy:top + 4, r:9, fill:PAL.num.f, stroke:PAL.num.s, 'stroke-width':0.6}, g); text(g, x0 + 74, top + 4, String(n.shared).slice(0, 2), 'lbl', {fill:PAL.num.t, 'font-size':10}); }
+      if (n.scale) text(g, x0 + 74, top + 30, '×√d', 'lbl', {fill:P.t, 'font-size':10});
+      labelsBelow(g, n, y0 + h, [`Embedding · d ${n.d}`, `${n.pos === 'learnt' ? 'learnt' : n.pos === 'sinusoidal' ? 'sinusoidal' : 'no'} positions${n.shared ? ` · shares ${n.shared}` : ''}`]);
+      break; }
+    case 'project': {
+      const P = PAL.grey;
+      for (let i = 0; i < 4; i++) { el('rect', {x:x0 + i * 18, y:y0 + 8, width:8, height:40, fill:P.c, stroke:P.s, 'stroke-width':0.6}, g);
+        el('circle', {cx:x0 + i * 18 + 4, cy:y0 + 2, r:2.5, fill:PAL.enc.c, stroke:PAL.enc.s, 'stroke-width':0.5}, g); }
+      labelsBelow(g, n, y0 + h, [`Per token · ${n.units} ${n.act === 'None' ? 'linear' : n.act}`]);
+      break; }
+    case 'add':
+      el('circle', {cx:n.x, cy:n.y, r:16, fill:PAL.grey.f, stroke:PAL.grey.s, 'stroke-width':0.8}, g);
+      text(g, n.x, n.y, '+', 'lblb', {'text-anchor':'middle'});
+      labelsBelow(g, n, y0 + h, ['Add']);
+      break;
+    case 'encoder': case 'decoder': {
+      const P = n.kind === 'encoder' ? PAL.enc : PAL.dec, k = n.kind === 'encoder' ? slabCount(n) : Math.max(2, slabCount(n));
+      for (let i = 0; i < k; i++) {
+        const sy = y0 + i * 42;
+        el('rect', {x:x0, y:sy, width:w, height:34, rx:6, fill:P.f, stroke:P.s, 'stroke-width':0.6}, g);
+        if (n.kind === 'encoder') fan(g, x0 + 34, sy + 6, sy + 28, 40, P.s);
+        else { fan(g, x0 + 24, sy + 6, sy + 28, 22, P.s, 3); fan(g, x0 + 58, sy + 6, sy + 28, 22, P.s, 3); }
+        ffBlock(g, x0 + w - 30, sy + 11, P.c, P.s);
+      }
+      if (+n.layers > k && n.kind === 'encoder') for (const dy of [-5, 0, 5]) el('circle', {cx:x0 + w + 8, cy:n.y + dy, r:1.4, fill:P.s}, g);
+      labelsBelow(g, n, y0 + h, [`${n.kind === 'encoder' ? 'Encoder' : 'Decoder'} · ${n.layers} layer${+n.layers === 1 ? '' : 's'}`,
+        `${n.kind === 'decoder' ? 'self + cross · ' : ''}${n.heads} heads · FF ${n.dff} ${n.act}`]);
+      if (n.kind === 'decoder') { text(g, x0 + 4, y0 - 9, '↓ target', 'lbl', {'text-anchor':'start', fill:P.s});
+        text(g, x0 - 12, y0 + h - 4, 'memory →', 'lbl', {'text-anchor':'end', fill:P.s}); }
+      break; }
+    case 'seqsoftmax': {
+      const P = PAL.out;
+      el('rect', {x:x0, y:y0, width:w, height:h, rx:6, fill:'none', stroke:C.grey, 'stroke-width':0.6, 'stroke-dasharray':'4 3'}, g);
+      [[16, 6, 10], [26, 4, 8, 12]].forEach((bars, gi) => bars.forEach((bh, i) => {
+        el('rect', {x:x0 + 8 + gi * 30 + i * 7, y:y0 + h - 10 - bh, width:5, height:bh, fill:P.bar, stroke:P.s, 'stroke-width':0.5}, g); }));
+      text(g, n.x, y0 + 14, 'per token', 'lbl', {'font-size':10});
+      labelsBelow(g, n, y0 + h, [`Softmax · ${fmt(n.vocab)} tokens`, [n.tie ? `tied to ${n.tie}` : '', +n.smoothing > 0 ? `ε ${n.smoothing}` : ''].filter(Boolean).join(' · ')]);
+      outLabel(g, n, x0, w);
+      break; }
+    case 'pick': {
+      const k = Math.min(Math.max(+n.position || 1, 1), 5);
+      for (let i = 0; i < 5; i++) el('rect', {x:x0 + i * 19, y:y0 + 1, width:17, height:17, rx:2, fill:i + 1 === k ? PAL.enc.c : PAL.grey.f, stroke:i + 1 === k ? PAL.enc.s : PAL.grey.s, 'stroke-width':0.7}, g);
+      el('path', {d:`M${x0 + (k - 1) * 19 + 8.5},${y0 + 20} L${x0 + (k - 1) * 19 + 8.5},${y0 + 36}`, stroke:PAL.enc.s, 'stroke-width':1, 'marker-end':''}, g);
+      el('circle', {cx:x0 + (k - 1) * 19 + 8.5, cy:y0 + 36, r:2.5, fill:PAL.enc.s}, g);
+      labelsBelow(g, n, y0 + h, [`Pick · position ${n.position}`]);
+      break; }
+    case 'pool': {
+      for (let i = 0; i < 5; i++) { el('rect', {x:x0, y:y0 + i * 10 + 1, width:14, height:8, rx:1, fill:PAL.grey.f, stroke:PAL.grey.s, 'stroke-width':0.6}, g);
+        el('line', {x1:x0 + 14, y1:y0 + i * 10 + 5, x2:x0 + w - 18, y2:n.y, stroke:PAL.grey.s, 'stroke-width':0.6}, g); }
+      el('rect', {x:x0 + w - 18, y:n.y - 6, width:16, height:12, rx:2, fill:PAL.enc.c, stroke:PAL.enc.s, 'stroke-width':0.7}, g);
+      labelsBelow(g, n, y0 + h, [`${n.op || 'Mean'} pool`]);
+      break; }
+    case 'possoftmax': {
+      el('rect', {x:x0, y:y0, width:w, height:h, rx:6, fill:'none', stroke:C.grey, 'stroke-width':0.6, 'stroke-dasharray':'4 3'}, g);
+      [6, 10, 30, 8, 5, 4].forEach((bh, i) => el('rect', {x:x0 + 10 + i * 13, y:y0 + h - 10 - bh, width:9, height:bh, fill:PAL.out.bar, stroke:PAL.out.s, 'stroke-width':0.5}, g));
+      labelsBelow(g, n, y0 + h, ['Softmax over positions']);
+      outLabel(g, n, x0, w);
+      break; }
+    case 'regression': {
+      el('rect', {x:x0, y:y0, width:w, height:h, rx:6, fill:'none', stroke:C.grey, 'stroke-width':0.6, 'stroke-dasharray':'4 3'}, g);
+      const k = Math.min(Math.max(+n.outputs || 1, 1), 4), sp = (h - 16) / k;
+      for (let i = 0; i < k; i++) { const y = y0 + 8 + i * sp + sp / 2, len = [40, 26, 52, 34][i];
+        el('line', {x1:x0 + 10, y1:y, x2:x0 + 10 + len, y2:y, stroke:PAL.out.s, 'stroke-width':4, 'stroke-linecap':'round', opacity:0.75}, g); }
+      labelsBelow(g, n, y0 + h, [`Regression · ${n.outputs} output${+n.outputs === 1 ? '' : 's'}`]);
+      outLabel(g, n, x0, w);
+      break; }
   }
 }
 
@@ -1063,7 +1137,7 @@ function fit() {
   const svg = $('#canvas'), r = svg.getBoundingClientRect();
   if (!D.nodes.length || !r.width) { view = {x:0, y:0, s:1}; applyView(); return; }
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  D.nodes.forEach(n => { const {w, h} = size(n), extra = ['softmax', 'seqsoftmax', 'possoftmax', 'regression'].includes(n.kind) ? 110 : 10; x0 = Math.min(x0, n.x - w / 2 - 10); x1 = Math.max(x1, n.x + w / 2 + extra); y0 = Math.min(y0, n.y - h / 2 - 10); y1 = Math.max(y1, n.y + h / 2 + 26); });
+  D.nodes.forEach(n => { const {w, h} = size(n), extra = ['softmax', 'seqsoftmax', 'possoftmax', 'regression'].includes(n.kind) ? 110 : 10; x0 = Math.min(x0, n.x - w / 2 - 10); x1 = Math.max(x1, n.x + w / 2 + extra); y0 = Math.min(y0, n.y - h / 2 - 22); y1 = Math.max(y1, n.y + h / 2 + 46); });
   const s = Math.min(1.6, (r.width - 60) / (x1 - x0), (r.height - 60) / (y1 - y0));
   view.s = Math.max(0.2, s); view.x = (x0 + x1) / 2 - r.width / 2 / view.s; view.y = (y0 + y1) / 2 - r.height / 2 / view.s;
   applyView();
@@ -1195,6 +1269,7 @@ function inspector() {
       <div class="hint" style="margin-top:6px">With SubjectNet's data the classes are <code>object, other</code>.</div>`,
     tokens:`<div class="row"><div><label>Name (the port)</label><input type="text" id="iName" value="${escA(n.name)}"></div>
       <div><label>Vocabulary size</label><input type="number" id="iVocab" min="1" value="${n.vocab}"></div></div>
+      <label>Sample tokens for the picture (up to five, separated by spaces)</label><input type="text" id="iSample" value="${escA(n.sample || '')}">
       <div class="hint" style="margin-top:6px">A sequence of token indices, 1 to the vocabulary size. Tokens that reach a Decoder's target input are its target: the decoder reads them without the last, and the Softmax per token is scored on them without the first (teacher forcing).</div>`,
     numbers:`<div class="row"><div><label>Name (the port)</label><input type="text" id="iName" value="${escA(n.name)}"></div>
       <div><label>Numbers per token</label><input type="number" id="iSizeN" min="1" value="${n.size}"></div></div>`,
@@ -1237,6 +1312,7 @@ function inspector() {
   const int = (v, lo = 1) => Math.max(lo, Math.round(+v) || lo);
   on('#iName', v => n.name = v.trim().replace(/[^\w]/g, '') || n.name);
   on('#iVocab', v => n.vocab = int(v));
+  on('#iSample', v => n.sample = v.trim());
   on('#iSizeN', v => n.size = int(v));
   on('#iD', v => n.d = int(v, 2));
   on('#iPos', v => n.pos = v);
