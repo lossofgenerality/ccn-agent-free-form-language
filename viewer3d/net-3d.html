@@ -84,9 +84,9 @@ footer{padding:14px max(3vw,16px) 24px;font-size:13px;color:var(--soft)}
     <h2>How to read it</h2>
     <ol>
       <li><b>Input x.</b> The strip on the left has 2048 slots. Each feature of the sentence (its verb, the words after it, and so on) is hashed to one slot, which becomes 1; every other slot is 0.</li>
-      <li><b>W₁ᵀ.</b> The long field: one row of 2048 weights for each of the 32 hidden units. Height and colour show each weight. Only the columns of the lit slots take part; the rest are dimmed.</li>
+      <li><b>W₁ᵀ.</b> The long field: one row of 2048 weights for each of the 32 hidden units. Height and colour show each weight. Only the columns of the lit slots take part; the rest are dimmed. The weights themselves are fixed after training and are the same for every sentence: a new sentence lights different columns, it does not change the matrix.</li>
       <li><b>Σ = W₁ᵀx.</b> The streams carry the lit columns forward, and they are added up: 32 numbers.</li>
-      <li><b>+ b₁ = z₁.</b> The bias row is added.</li>
+      <li><b>+ b₁ = z₁.</b> The bias row is added. It is fixed, so it looks the same for every sentence; every row is drawn to one scale for all sentences.</li>
       <li><b>σ = ReLU.</b> Negative entries become 0 (shown flat and grey). This bend is what makes a net more than one matrix.</li>
       <li><b>× W₂, then Σ + b₂ = z₂.</b> Each survivor is multiplied by its two weights, for "object" and "other", and each column is added up.</li>
       <li><b>softmax → p.</b> The two numbers become probabilities that add up to 1.</li>
@@ -199,7 +199,7 @@ function build() {
   setRow(state.rows.w2o, D.W2.map(r => r[0]), 4, xs); setRow(state.rows.w2t, D.W2.map(r => r[1]), 4, xs);
   // fixed labels on the right of each row
   const R = X(31) + 1.2, put = (s, x, y, z) => { s.position.set(x, y, z); scene.add(s); };
-  put(label('W₁ᵀ', 1.3, '#8fd3ff', '32 hidden units × 2048 input slots = 65,536 weights', [0, 0], true), R + 0.4, 1.2, -1);
+  put(label('W₁ᵀ', 1.3, '#8fd3ff', '65,536 weights, fixed after training: the sentence only chooses which columns are used', [0, 0], true), R + 0.4, 1.2, -1);
   put(label('x', 1.1, '#8fd3ff', '2048 slots; the lit ones are 1', [1, 0], true), X(0) - 2.4, 1.0, -2);
   [['Σ  W₁ᵀx', 'the lit columns, added up', ZS], ['+ b₁', 'bias', ZS + 3], ['= z₁', '', ZS + 6],
    ['σ = ReLU → a₁', 'negatives become 0', ZS + 10], ['× W₂', 'object (front), other (back)', ZS + 14.9],
@@ -210,17 +210,28 @@ function build() {
 }
 
 // ---------- One sentence through the net ----------
-function run(k) {
-  sent = D.sentences[k];
-  const slots = [...new Set(sent.slots)];
-  state.active = new Set(slots); state.slotName = {};
-  sent.slots.forEach((s, i) => state.slotName[s] = (state.slotName[s] ? state.slotName[s] + ', ' : '') + sent.features[i]);
-  const h = new Array(H).fill(0);
+function forward(st) {
+  const slots = [...new Set(st.slots)], h = new Array(H).fill(0);
   for (let i = 0; i < H; i++) for (const j of slots) h[i] += W1T[i * N + j];
   const z1 = h.map((v, i) => v + D.b1[i]), a1 = z1.map(v => Math.max(0, v));
   const prod = a1.map((a, i) => [a * D.W2[i][0], a * D.W2[i][1]]);
   const z2 = [0, 1].map(c => prod.reduce((s, r) => s + r[c], 0) + D.b2[c]);
   const m = Math.max(...z2), e = z2.map(v => Math.exp(v - m)), p = e.map(v => v / (e[0] + e[1]));
+  return {slots, h, z1, a1, prod, z2, p};
+}
+// One scale for every sentence, so that what is fixed (b1, W2) looks the same whichever sentence is chosen
+const SC = {};
+function scales() {
+  const all = D.sentences.map(forward), mx = a => Math.max(1e-9, ...a.map(Math.abs));
+  SC.v = 3 / mx([...D.b1, ...all.flatMap(r => [...r.h, ...r.z1])]);
+  SC.p = 2.5 / mx(all.flatMap(r => r.prod.flat()));
+  SC.z2 = 3 / mx(all.flatMap(r => r.z2));
+}
+function run(k) {
+  sent = D.sentences[k];
+  const {slots, h, z1, a1, prod, z2, p} = forward(sent);
+  state.active = new Set(slots); state.slotName = {};
+  sent.slots.forEach((s, i) => state.slotName[s] = (state.slotName[s] ? state.slotName[s] + ', ' : '') + sent.features[i]);
   Object.assign(state, {h, z1, a1, prod, z2, p});
   // field: light the active columns, dim the rest
   const f = state.field;
@@ -241,20 +252,20 @@ function run(k) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   state.flows.geometry = g;
   // the rows
-  const s1 = 3 / Math.max(...h.map(Math.abs), ...z1.map(Math.abs), ...D.b1.map(Math.abs));
+  const s1 = SC.v;
   const R = state.rows, off = z1.map(v => v < 0);
   setRow(R.h, h, s1, X); setRow(R.b1, D.b1, s1, X); setRow(R.z1, z1, s1, X); setRow(R.a1, a1, s1, X, off);
-  const sp = 2.5 / Math.max(1e-9, ...prod.flat().map(Math.abs));
+  const sp = SC.p;
   setRow(R.po, prod.map(r => r[0]), sp, X); setRow(R.pt, prod.map(r => r[1]), sp, X);
   const xz = k => (k ? 1.1 : -1.1);
-  setRow(R.z2, z2, 3 / Math.max(...z2.map(Math.abs)), xz);
+  setRow(R.z2, z2, SC.z2, xz);
   R.p.userData.vals = p; p.forEach((v, k) => { const hh = Math.max(.03, v * 7);
     tmp.position.set(xz(k), hh / 2, R.p.userData.z); tmp.scale.set(1.6, hh, 1.1); tmp.updateMatrix(); R.p.setMatrixAt(k, tmp.matrix); R.p.setColorAt(k, k === (p[0] > p[1] ? 0 : 1) ? C.sky : C.off); });
   R.p.instanceMatrix.needsUpdate = true; R.p.instanceColor.needsUpdate = true;
   state.pl = [0, 1].map(k => swap(state.pl && state.pl[k], (() => { const s = label(`${D.classes[k]} ${(100 * p[k]).toFixed(2)}%`, .75, k === (p[0] > p[1] ? 0 : 1) ? '#8fd3ff' : '#a9c3da', '', [.5, 0]);
     s.position.set(xz(k), Math.max(.03, p[k] * 7) + .3, ZS + 30); return s; })()));
   state.zl = [0, 1].map(k => swap(state.zl && state.zl[k], (() => { const s = label(`${D.classes[k]} ${z2[k].toFixed(2)}`, .6, '#f2f7fb', '', [.5, 0]);
-    s.position.set(xz(k), Math.max(0, z2[k] * 3 / Math.max(...z2.map(Math.abs))) + .3, ZS + 25); return s; })()));
+    s.position.set(xz(k), Math.max(0, z2[k] * SC.z2) + .3, ZS + 25); return s; })()));
   // panel
   const best = p[0] > p[1] ? 0 : 1, right = D.classes[best] === sent.label;
   $('result').innerHTML = D.classes.map((c, k) => `<div class="bar"><span>${c}</span><i style="width:${(100 * p[k]).toFixed(1)}%;${k === best ? '' : 'background:#6b7a90'}"></i><span>${(100 * p[k]).toFixed(2)}%</span></div>`).join('')
@@ -263,7 +274,7 @@ function run(k) {
 
 // ---------- Camera stages and the glide ----------
 const S = () => [
-  {name: 'Overview', pos: [34, 30, -18], tgt: [0, 0, ZS / 2 + 4], text: 'The whole net. The long field is W₁ᵀ: 65,536 weights. The rows beyond it are the layers that follow.'},
+  {name: 'Overview', pos: [34, 30, -18], tgt: [0, 0, ZS / 2 + 4], text: 'The whole net. The long field is W₁ᵀ: 65,536 weights. The rows beyond it are the layers that follow. The weights (W₁, b₁, W₂, b₂) are the same for every sentence; only the lit columns and the activity after them change.'},
   {name: 'Input x', pos: [-15, 6, -8], tgt: [-5, 0, 24], text: 'The input strip: 2048 slots, each 0 or 1. The sentence lights one slot per feature; the labels name them.'},
   {name: 'W₁ᵀ field', pos: [13, 7, 20], tgt: [0, 0, 48], text: 'Each lit slot picks out one column across the field: 32 weights, one per hidden unit. Dimmed columns are multiplied by 0 and play no part.'},
   {name: 'Σ → W₁ᵀx', pos: [11, 6.5, ZS - 10], tgt: [0, 0, ZS + 3], text: 'The streams carry the lit columns forward, and they are added unit by unit: W₁ᵀx. Then the bias b₁ is added, giving z₁.'},
@@ -319,7 +330,7 @@ async function start() {
   D = inline ? JSON.parse(inline.textContent) : await (await fetch('subjectnet-3d-data.json')).json();
   const raw = atob(D.W1T_int16_x1000); W1T = new Float32Array(N * H);
   for (let k = 0; k < N * H; k++) { let v = raw.charCodeAt(2 * k) | (raw.charCodeAt(2 * k + 1) << 8); if (v > 32767) v -= 65536; W1T[k] = v / 1000; }
-  stages = S(); build();
+  stages = S(); build(); scales();
   $('sent').innerHTML = D.sentences.map((s, k) => { const o = document.createElement('option'); o.value = k; o.textContent = `${s.text}  (${s.label})`; return o.outerHTML; }).join('');
   $('stages').innerHTML = stages.map((s, k) => `<button type="button" data-k="${k}">${k + 1}. ${s.name}</button>`).join('');
   $('stages').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (gliding) glide(); fly(stages[+b.dataset.k], 1.4); });
