@@ -1,151 +1,193 @@
 <!-- © Computational Classnotes · CC BY-NC-SA 4.0 -->
-# Motion phrases: a brief report on output and performance
+# Motion phrases: a report on output and performance
 
-*24 November 2026. Measured on Wolfram 15.0.1 (Linux, a cloud evaluation kernel), not on your Mac, so the times are a guide only.*
+*24 November 2026, second issue. Measured on Wolfram 15.0.1 (Linux, a cloud evaluation kernel), not on your Mac, so the times are a guide only.*
 
 ## Summary
 
-- All **16 tests pass** (`tests/MotionPhrasesTest.nb`).
-- Reading a phrase takes **about 2 to 3 ms**. A transform at one moment takes about **1 ms** once the phrase has been read.
-- The outputs are exact (π, √2 and so on) wherever the phrase gives exact amounts. The default path and the moves give exact formulas in t.
-- Three kinds of phrase are read too literally (see "Where it falls short"). Each one is easy to fix.
+- The code now reads **paragraph-sized text**, not just phrases. It finds the motion parts and sets the rest aside: ordinary sentences, figures of speech ("turn on the lights", "sales rose by 12 percent"), questions and negations. It also copes with common dictation and grammar slips.
+- Tested on **557 phrase variants** and **12 paragraphs** (28 to 70 words each), old version against new:
+
+| | Old version | New version |
+|---|---|---|
+| Phrases in other word orders, read right | 49 of 62 | **62 of 62** |
+| All 557 phrase variants (orders × slips), read right | 340 (61%) | **547 (98%)** |
+| Paragraphs ending in the right place and facing the right way | 2 of 12 | **12 of 12** |
+| Paragraphs also right step by step (same steps, same timing) | 0 of 12 | **9 of 12** |
+| Tests in `tests/MotionPhrasesTest.nb` | 16 of 16 | **23 of 23** (7 new) |
+
+- Reading a phrase takes **about 7 ms** (the old version took about 3 ms). A paragraph takes **about 20 to 30 ms**.
+- The three paragraphs not right step by step each pick up one harmless extra step: a full turn or a pause that a person wouldn't count as a motion (see "Where it still falls short").
 
 ## How it was built
 
-**No neural nets, and no conversational-construct at run time.** The phrase is read by straightforward, rule-based interpretation of the string, and the meaning is built with Wolfram's own symbolic geometry. Every step is deterministic: the same phrase always gives the same transform, and every reading can be traced in the report.
+**Still no neural nets, and no conversational-construct while it runs.** Every step is rule-based, deterministic and listed in the report it gives, so the same text always gives the same motion, and every reading can be traced.
+
+The test texts were the exception: Claude, a conversational-construct, wrote all twelve paragraphs and every phrase variant for this test. None were borrowed from other sources.
 
 | Technique | Used for |
 |---|---|
-| Regular expressions (`StringReplace`, `StringSplit`, `StringCases` with `RegularExpression`) | tidying the phrase (*anti-clockwise* → *counterclockwise*, *x-axis* → *x axis*, ° → *degrees*, *and a half* → one token); splitting it into stages and parts; cutting parts into words and numbers |
-| Word lists (an Association, `$MotionVocabulary`) | the meaning of each word: verbs by kind (move, rise, sink, spin, orbit, follow, pause), directions as vectors, axes, the sense of turning, number words, units, and words to ignore |
-| Keyword rules, in a fixed order of priority (`Which`) | deciding what kind of motion each part is |
-| Exact arithmetic | amounts kept as exact numbers (π/2, 5π, 1/√2) rather than decimals |
-| `RotationTransform`, `TranslationTransform`, `AffineTransform`, composed with `Dot` | the motion of each stage as a transform in the stage time t |
-| `Inactive` and `Activate` | keeping each stage as a readable formula, and evaluating it only when asked |
-| `Simplify`, `Chop` and `TransformationMatrix` | the exact position and orientation where each stage ends, which the next stage starts from |
-| `Piecewise` | a path given as a list of points, as an exact function of t |
-| `Graphics3D`, `GeometricTransformation` and `Animate` | the pictures |
-| `VerificationTest` and `TestReport` | the 16 tests |
+| Regular expressions (`StringReplace`, `StringSplit`, `StringPosition`, `StringCases`) | splitting text into sentences, steps and parts; tidying spellings; removing filler words and stutters; finding figures of speech |
+| Word lists (`$MotionVocabulary`, an Association) | the meaning of each word, now with past-tense forms (moved, spun, rose, fell…), more verbs (raise, pivot, swivel, step, come…) and a list of figures of speech to set aside |
+| Dictation fixes | words split apart ("counter clock wise", "up wards"), and homophones where the meaning is clear from the words around them ("write" for right, "too steps", "for units", "won more", "than spin") |
+| Number words to digits | "ninety", "one hundred and eighty", "two and a half", "a hundred" |
+| Spelling correction (`DamerauLevenshteinDistance`, `DictionaryWordQ`) | an unknown word of 5 or more letters, not in the dictionary, is matched to the nearest motion word with the same first letter, within 1 edit (2 for long words): "spining" → spinning, "counterclokwise" → counterclockwise, "orgin" → origin |
+| Rules of English order | *then*, *next*, *finally*, *after that* make a new step; "Y **after** X" and "**before** X, Y" are put in time order; a comma list of actions ("moved forward, turned left, and moved on") is one after another; *while*, *as* and a leading "-ing" part ("spinning, move up") are at the same time |
+| Keyword rules, in a fixed order (`Which`) | the kind of each part: pause, path, orbit, spin, move |
+| Filters | a question, a negation ("don't move left"), a direction with no motion verb, or a lone verb with no direction or distance ("thank you for coming") is set aside, with the reason |
+| Exact arithmetic and Wolfram's own geometry | `RotationTransform`, `TranslationTransform` and `AffineTransform`, composed with `Dot`, held as readable formulas with `Inactive` until evaluated; `Simplify` for where each step ends |
+| `VerificationTest`, `TestReport` | 23 tests, and the 557-phrase and 12-paragraph scoring |
 
-The only place a net might later help is in reading free wording ("whirl", "zig-zag") that isn't in the word lists. That could be one of the agent's own small nets (draft 8), with the word lists kept as the check.
+The word lists are the obvious place for one of the agent's own small nets (draft 8) to help. A net could learn which sentences carry motion and which words mean what, from the parts set aside and accepted in reports, and the rules would stay as its check.
 
 ## The algorithm, in pseudocode
 
 ```
-READ-PHRASE(phrase, options):
-    text ← lower case of phrase
-    text ← tidy(text)                         -- spellings, units, "and a half", "x-axis"
-    stages ← split text at  then | and then | after that | followed by | "." | ";"
-    position ← (0, 0, 0);  orientation ← identity
-    for each stage:
-        parts ← split stage at  while | and | as | meanwhile | ","
-        motions ← [READ-PART(p) for each part p]      -- these happen at the same time
-        formula, position, orientation ← STAGE-TRANSFORM(motions, position, orientation)
-        add formula to formulas
-    return formulas, the motions, position and orientation at the end, and the report
+READ-TEXT(text, options):
+    for each sentence of text:                         -- split at . ! ? ; or a new line
+        if it ends with "?": set it aside (a question); next sentence
+        s ← TIDY(sentence)
+        for each step of s, split at  then | next | finally | after that | . | ;
+            for each piece of ORDER-IN-TIME(step):     -- "after" and "before"
+                for each group of GROUP-PARTS(piece):
+                    keep, aside ← SETTLE(group)
+                    if keep has a motion: add keep as a new step
+    position ← (0,0,0); orientation ← identity
+    for each step: formula, position, orientation ← STEP-TRANSFORM(step, position, orientation)
+    return the steps, their formulas, where it ends, what was set aside, and the report
+
+TIDY(sentence):
+    lower case; curly quotes to straight ones
+    remove fillers (um, uh, er, hmm) and stutters ("spin spin" → spin)
+    dictation fixes: "counter clock wise" → counterclockwise, "write" → right,
+        "too"/"for" before a unit → two/four, "won" → one, "than" before a verb → then
+    number words → digits: "one hundred and eighty" → 180
+    set aside figures of speech: turn on/off, move on to, look up, rose by N percent…
+    usual tidying: degrees, "x-axis", "and a half"
+
+ORDER-IN-TIME(step):
+    "after X, Y" or "after X Y"  → X, then Y      (Y starts at the next plain motion verb)
+    "Y after X"                  → X, then Y
+    "before X, Y"                → Y, then X
+    "Y before X"                 → Y, then X
+
+GROUP-PARTS(piece):
+    split at  "," | ", and" | and | while | as | meanwhile, noting which one came before each part
+    in run-on speech, split again before each motion verb after the first
+        (not a unit like "a quarter turn", not a noun after "the", "a", "your"…)
+    read each part (READ-PART)
+    a part after a comma starts a new group (one after another) when both it and the part
+        before have their own motion verb, neither begins with an "-ing" verb, and the part
+        before wasn't introduced by "while"/"as"; otherwise it joins the same group (together)
+
+SETTLE(group):
+    set aside: negated parts; parts with no motion words; a direction with no motion verb
+        in the whole group; a lone verb with no direction, distance or number
+    join stray words to the spin they describe: "clockwise, spin 90 degrees",
+        "about the x axis, spin 270 degrees"
 
 READ-PART(part):
-    words ← the words and numbers in part
-    amount ← AMOUNT(words)                    -- may be missing
-    kind ← the first that holds:
-        a pause word                          → pause
-        "path" or a follow word               → path
-        an orbit word, or "around/about" + "origin/centre/point"  → orbit
-        a spin word, or clockwise/counterclockwise without a move word  → spin
-        a move, rise or sink word, a direction or an axis  → move
-        otherwise                             → unknown
-    if kind is spin or orbit:
-        axis  ← the axis named, else z                    (noted as assumed)
-        sense ← +1 counterclockwise, −1 clockwise; for spin, left +1, right −1; else +1
-        angle ← amount × (π/180 for degrees | 1 for radians | 2π for turns/times)
-                if no amount: π/2 for "turn left/right", else 2π      (noted as assumed)
-        for an orbit, centre ← origin, or the "Centre" option
-    if kind is move:
-        v ← sum of the direction vectors named; else up for rise, down for sink,
-            the named axis, else forward                  (noted as assumed)
-        v ← v / |v|;  distance ← amount, else the "Step" option (1)
-    note every word not in the word lists as "not understood"
-    return kind and its values
+    words ← the words and numbers; correct misspellings (see the table above)
+    kind ← pause | path | orbit | spin | move, the first that matches (as before)
+    spin/orbit: axis (else z), sense (else counterclockwise; for turn left/right ±),
+        angle = amount × unit (degrees, radians, turns); with no amount: a quarter turn for
+        "turn left/right", a half turn for "turn around", else a full turn
+    move: the sum of the directions named ("back" is dropped beside up/down: "raise it back up"),
+        else up for rise words, down for sink words, the axis named, else forward;
+        distance = amount, else 1
+    path: also carries any direction named ("move upwards along the path")
+    list assumptions, corrections and words not understood
 
-AMOUNT(words):
-    numbers ← digits and number words (a, one … ten, half, quarter, twice, full …)
-    if only "a"/"an" are present: missing
-    return the product of the numbers, + 1/2 for "and a half", + 1/4 for "and a quarter"
-
-STAGE-TRANSFORM(motions, P, M):                   -- t runs from 0 to 1 in this stage
-    offset(t) ← Σ over moves   distance · F(v) · t
-              + Σ over paths   F(path(t) − path(0))
-        where F(x) = M·x if the "Frame" option is "Object", else x
-    spin(t)   ← compose over spins   RotationTransform(sense · angle · t, axis)
-    orbit(t)  ← compose over orbits  RotationTransform(sense · angle · t, axis, centre)
-    T(t) ← orbit(t) · TranslationTransform(P + offset(t)) · spin(t) · AffineTransform(M)
-        -- the object turns about its own centre, is moved to its place,
-        -- then is carried round any orbit centre
-    from T(1): P ← its translation part, M ← its rotation part (simplified exactly)
-    return T (kept inactive, as a formula), P, M
-
-TRANSFORM-AT(formulas, t):                         -- t from 0 to 1 over the whole phrase
-    n ← number of stages;  k ← ⌊t·n⌋ + 1, at most n;  s ← t·n − (k − 1)
-    return the activated formula of stage k at stage time s
+STEP-TRANSFORM(parts, P, M):                       -- t from 0 to 1 within the step
+    offset(t) ← Σ moves d·F(v)·t + Σ paths (F(path(t) − path(0)) + d·F(v)·t)
+        where F(x) = M·x in the object's own frame, else x
+    T(t) ← orbits(t) · TranslationTransform(P + offset(t)) · spins(t) · AffineTransform(M)
+    P, M ← where T(1) puts and turns the object
 ```
 
-## Output: ten phrases
+## Output: twelve paragraphs
 
-| Phrase | Read as | Ends at | Facing |
+Each paragraph was scored against a short phrase holding the same motions in order. "Ends right" means the same final position and orientation. "Steps right" means the same steps, at the same times, checked at t = 0.37.
+
+| Paragraph | Words | Steps found / expected | Ends right | Steps right | Set aside |
+|---|---|---|---|---|---|
+| Drone light-show script | 70 | 3 / 3 | yes | yes | 7 sentences or parts, incl. "thank you for coming" |
+| Dance class, dictated (no capitals, "write", "too", "clock wise") | 51 | 3 / 3 | yes | yes | 4 parts and "pick this up" |
+| Animation storyboard | 56 | 4 / 3 | yes | no: "the camera holds on the kettle" read as a pause | 4 parts, incl. "the cat does not move" |
+| Robot vacuum log (past tense; the robot's own frame) | 51 | 5 / 5 | yes | yes | 5 parts and "fell to 40 percent" |
+| Children's game | 38 | 4 / 4 | yes | yes | "can you jump?", "don't move left!" and "turn on" |
+| VR tutorial (numbers in words) | 59 | 3 / 3 | yes | yes | 5 parts and "turn off" |
+| Gallery installation | 52 | 3 / 2 | yes | no: "the experience turns their sense of scale" read as a full turn | 2 parts and "upside down" |
+| Email with instructions | 64 | 3 / 3 | yes | yes | 9 parts and "going forward", "rose by 12 percent", "falls behind" |
+| Short story | 46 | 4 / 3 | yes | no: "Mia… turned to her brother" read as a full turn | 5 parts and "look up", "looking up" |
+| Meeting minutes (no motions at all) | 54 | 0 / 0 | yes | yes | 10 parts and 6 figures of speech: "move on to", "rose to 80 percent", "circle back", "turn in", "drop the ball", "looking up" |
+| Voice memo, run-on dictation ("than", "counterclokwise", "for units", "won") | 35 | 3 / 3 | yes | yes | — |
+| Studio instructions ("after" and "before") | 28 | 4 / 4 | yes | yes | 3 parts |
+
+What was found in two of them, as an example:
+
+- **Drone script:** "the drone should rise 4 metres" + "spinning counterclockwise" (together), then "it will move right 3 units", then "orbit counterclockwise around the origin a half turn". It ends at {−3, 0, 4}, turned 180°.
+- **Studio instructions:** "raising it 1 unit", then "spin the model 360 degrees clockwise", then "slide it right 2 units", then "wait". The *after* and *before* sentences came out in time order.
+
+## Output: 557 phrase variants
+
+There are 12 base phrases, and each is written in 3 to 6 other orders that mean the same in English (62 wordings in all). Each wording was then given 12 kinds of slip wherever the slip applies. A variant counts as read right when it matches its base phrase at t = 0.37 and at the end.
+
+| Kind of slip | Variants | Old version | New version |
 |---|---|---|---|
-| move along the path while spinning counterclockwise and move upwards | path + spin + move, together | {3, 0, 1} | as it started (one full turn) |
-| spin clockwise 90 degrees | spin | {0, 0, 0} | turned −90° about z |
-| move up 2 units then turn left then move forward | move; spin; move | {0, 1, 2} | turned +90° about z |
-| move right 2 then orbit counterclockwise around the origin a half turn | move; orbit | {−2, 0, 0} | turned 180° about z |
-| spin two and a half turns about the x axis while rising 3 | spin + move | {0, 0, 3} | turned 180° about x |
-| move forward 2 metres, spin twice | move + spin | {0, 2, 0} | as it started |
-| slide left slowly | move | {−1, 0, 0} | as it started; "slowly" reported as not understood |
-| dance wildly | nothing understood | {0, 0, 0} | as it started; both words reported |
-| turn around | spin | {0, 0, 0} | as it started (a full turn: see below) |
-| go up and down | two moves, together | {0, 0, 0} | as it started (they cancel: see below) |
+| None (just a different word order) | 62 | 49 | **62** |
+| Capitals and a full stop | 62 | 49 | **62** |
+| Filler words (um, uh, like) | 62 | 49 | **62** |
+| Words split by dictation ("counter clock wise", "up wards", "for ward") | 36 | 20 | **36** |
+| Homophones ("write", "too", "than", "for", "won") | 27 | 1 | **27** |
+| Misspellings ("spining", "counterclokwise", "degres", "orgin") | 38 | 9 | **38** |
+| Past tense ("spun", "moved", "rose", "orbited") | 59 | 28 | **58** |
+| Wrong verb forms ("while turn", "while spin") | 20 | 16 | **19** |
+| Repeated words ("spin spin", "the the") | 62 | 49 | **62** |
+| Run-on, no joining words or commas | 37 | 8 | **29** |
+| Numbers spelled out ("ninety", "a hundred and eighty") | 51 | 31 | **51** |
+| Numbers as digits ("2.5") | 7 | 6 | **7** |
+| Degree sign and hyphens ("90°", "x-axis", "counter-clockwise") | 34 | 25 | **34** |
+| **All** | **557** | **340 (61%)** | **547 (98%)** |
 
-The example phrase gives one formula in t:
+The orders tested include "while spinning counterclockwise, move along the path and move upwards", "spinning counterclockwise, move upwards along the path", "clockwise, spin 90 degrees", "go up 2, spin twice, then come down 2", "first rise 2, next spin twice, finally sink 2", "move down one unit after a pause" and "spin 180 degrees after following the path".
 
-```
-TranslationTransform[{3 t, Sin[2 π t], t}] . RotationTransform[2 π t, {0, 0, 1}]
-```
+Of the 10 variants still misread:
 
-which evaluates to the TransformationFunction with matrix rows `{Cos[2πt], −Sin[2πt], 0, 3t}`, `{Sin[2πt], Cos[2πt], 0, Sin[2πt]}` and `{0, 0, 1, t}`.
-
-Every assumption is listed in the report. The example has four: the default path, the z axis, one full turn, and one unit up.
+- **Two are fair readings, not errors.** "Spun counterclockwise, moved upwards along the path" and "spin counterclockwise, move upwards along the path" are comma lists of actions, which the code reads as one after another. The base phrase meant them at the same time, but English allows either.
+- **Eight are run-on dictation with no joining words at all.** An example is "slide left 3 units turn a quarter turn clockwise". The cut at the second verb fails there because "turn" is also a unit word ("a quarter turn").
 
 ## Performance
 
 | Operation | Time |
 |---|---|
-| Read the example phrase (`MotionParse`) | 2.8 ms |
-| Read a one-part phrase | 1.9 ms |
-| Read a 20-stage phrase | 29 ms (grows in step with the number of stages) |
-| `MotionTransform[phrase, 0.37]`: reads the phrase again on every call | 4.0 ms |
-| One transform from formulas already read | 1.1 ms |
-| 200 transforms from formulas already read (the path `MotionPlot` draws) | 0.22 s |
-| `MotionTransform[phrase, t]`, symbolic | 5.1 ms |
-| `MotionPlot[phrase]`, graphics built (rendering not included) | 0.23 s |
+| Read one phrase (new version) | about 7 ms (old version: about 3 ms) |
+| Read one paragraph of 30 to 70 words | about 20 to 30 ms |
+| Score all 557 variants (each read twice, plus the bases) | 8.2 s |
+| Score all 12 paragraphs (each read several times) | 1.1 s |
+| One transform from formulas already read | about 1 ms, as before |
 
-What this means:
+These are averages taken from the batch runs, not separate timings. The extra time per phrase goes mostly into spelling correction, which checks the dictionary and the word lists for each unknown word. Animation is as fast as before, because it works from formulas already read.
 
-- **Animation is smooth enough:** about 1 ms a frame, well under the time of a frame at 30 frames a second.
-- **For many time points, read the phrase once.** `MotionTransform[phrase, t]` reads the phrase each time it is called. In a loop, get `MotionFormula[phrase]` once and evaluate that, as `MotionPlot` and `MotionAnimate` do.
-- **Where the time goes:** in each transform, most of it is spent activating and composing the `RotationTransform` and `TranslationTransform` pieces anew. If it is ever needed, each stage can be compiled once into a plain function of t that gives the matrix. That should make each transform many times faster.
+## Where it still falls short
 
-## Where it falls short
+1. **A motion verb about something else is read as a motion.** In the tests, "the camera holds on the kettle" became a pause, "the experience turns their sense of scale" a full turn, and "Mia turned to her brother" a full turn. They don't move the object, but each adds a step. A fix would need to know who the subject is (the camera, the experience, Mia) and keep only motions of the object. That is the job a small net, or a subject named in the agent's script, would do best.
+2. **Run-on dictation where "turn" is both verb and unit.** See above: 29 of 37 are read right.
+3. **A comma list can mean "one after another" or "together".** The code reads a list of actions as one after another, which suits narrative and lists of instructions. "Move up, spinning slowly" (with "-ing") stays together.
+4. **"Go up and down" still cancels out.** Parts joined by *and* are together, and the report says the directions cancel.
+5. **A negation sets aside the whole part,** so "don't forget to spin twice" would be lost.
+6. **Speed and units are not used.** *Slowly* and *quickly* are reported as not understood. *Centimetres* and *metres* count the same as *units*.
+7. **Spelling correction needs the dictionary data.** `DictionaryWordQ` keeps real words (for example "spine") from being "corrected" into motion words. Without the data, more words would be corrected. Real-word slips the correction can't see ("ride" for "right") are only caught where a dictation fix lists them.
 
-1. **"turn around" gives a full turn.** In English it means a half turn. Fix: read *turn around* (with no centre and no amount) as 180°.
-2. **"go up and down" cancels out.** Parts joined by *and* happen at the same time, so up and down add to nothing. People usually mean one after the other. Fix: read *and* between two opposite directions as *then*, or ask for *then* and flag the case in the report (it is already flagged as "the directions cancel").
-3. **Speed words are ignored.** *Slowly*, *quickly* and *for 3 seconds* are reported as not understood. Each stage takes an equal share of time. Fix, if wanted: let speed words change how long a stage takes.
+Also by design: *forward*, *left* and so on are fixed directions in space unless `"Frame" -> "Object"` is set (the robot log uses it). A path given as points is walked at an even pace per segment.
 
-Also by design, not faults:
-- *forward*, *left* and so on are fixed directions in space unless `"Frame" -> "Object"` is set;
-- a path given as points is walked at an even pace per segment, not by length.
+## Files
 
-## Before you run it
+- `motion/MotionPhrases.nb`: the package. It is new in this issue: it reads paragraphs, and `MotionFind[text]` shows the motion parts found and what was set aside.
+- `tests/MotionPhrasesTest.nb`: 23 tests.
+- `tests/MotionPhrasesCorpus.nb`: the 557-variant corpus and the 12 paragraphs, with the scoring. Open it and evaluate it to reproduce the tables above.
 
-Open `motion/MotionPhrases.nb` and evaluate it, then open `tests/MotionPhrasesTest.nb` and evaluate it. Its last cell should show 16 passed, 0 failed. The notebooks were checked cell by cell against the tested code, but they haven't yet been opened in Mathematica itself.
+Before you run them: open `motion/MotionPhrases.nb` and evaluate it, then evaluate the test notebook. Its last cell should show 23 passed, 0 failed. The notebooks were checked cell by cell against the code that was run, but they haven't yet been opened in Mathematica itself.
 
 ---
 

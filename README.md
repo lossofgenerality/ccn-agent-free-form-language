@@ -22,7 +22,7 @@ The kernel pattern (modes, keys kept in the cloud, a settings block first) is ta
 
 ## First operations
 
-- `motion/MotionPhrases.nb`: reads motion phrases ("move along the path while spinning counterclockwise and move upwards") into `RotationTransform` and `TranslationTransform`. See `motion/README.md` and the report on its output and performance, `motion/Report.md`; tests in `tests/MotionPhrasesTest.nb`.
+- `motion/MotionPhrases.nb`: reads motion phrases ("move along the path while spinning counterclockwise and move upwards"), or paragraphs with motion phrases inside them, into `RotationTransform` and `TranslationTransform`. See `motion/README.md` and the report on its output and performance, `motion/Report.md`; tests in `tests/MotionPhrasesTest.nb`, and a larger corpus with paragraphs in `tests/MotionPhrasesCorpus.nb`.
 
 Wolfram code in this repo is delivered as notebooks (`.nb`), never as `.wl` files.
 
