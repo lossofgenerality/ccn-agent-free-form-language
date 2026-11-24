@@ -1,6 +1,6 @@
 # CCN Net Diagrams: the editor
 
-`net-diagram-editor.html` is a single self-contained page that runs offline in a browser. Open it, draw a small neural net, and press **Diagram → Code**. The page writes a Wolfram notebook (`.nb`) that builds the net drawn and trains it in two versions:
+`net-diagram-editor.html` is a single self-contained page that runs offline in a browser. Open it, draw a small neural net, and press **Diagram → Code**. The page writes a Wolfram notebook (`.nb`) or a Python script (`.py`); see "Wolfram or Python" below. The notebook builds the net drawn and trains it in two versions:
 
 - **A, our own code:** the forward pass, backpropagation and Adam are written out, and no Wolfram neural-net function is used.
 - **B, Wolfram's code:** `NetChain` (or `NetGraph` when the drawing branches) with `NetTrain`.
@@ -22,6 +22,27 @@ The page keeps the structure of the CCN String Diagrams editor (`lossofgeneralit
 Wires run from an output port (right side) to an input port (left side). An input port takes one wire; an output may feed several, which makes a branch.
 
 The panel on the right reads the drawing as you work. It shows the input, the layers, whether the net is a chain, and the number of weights, with any errors or warnings. **Example: SubjectNet** draws the net of `nets/SubjectNet.nb`: 2,048 slots, 32 ReLU units, two classes and 65,634 weights.
+
+## Wolfram or Python
+
+**Language**, at the top of the training settings, decides what Diagram → Code writes:
+
+- **Wolfram:** a notebook (`.nb`) with version A (our own code) and version B (`NetTrain`), as described below.
+- **Python:** a script (`.py`) that trains the net with our own code in `python/ccn_nets`, with no neural-net library. **Download .py** saves it.
+  - **Where to save it:** in the repository's `python/` folder, or anywhere else with "Where the repository's python/ folder is" set to the path from the script's folder to `python/`.
+  - **Running it:** `python3 <name>.py`, which needs only NumPy.
+  - **What the script contains:** the drawing as JSON, the layer sizes and activations, the features hashed exactly as in SubjectNet, the data, training, and checks: weights in the drawing against the trained net, the test accuracy, the gradient check and the training time. With SubjectNet's data it also reports whether the input matches SubjectNet's, and the paragraph, hard-sentence and step-by-step results. The trained weights are saved beside the script as `<name>.npz`.
+  - **Your own data:** write `my_data.py` beside the script, as the script's first lines describe.
+  - **Limits in this issue:** Python takes nets drawn as a chain only; for a net that branches, the editor says to choose Wolfram. Dropout is left out of the Python version, as it is of version A.
+
+The choice is remembered with the drawing.
+
+**Tested:** the script written for the SubjectNet example gives Python's SubjectNet results exactly. These are 65,634 weights, 99.5% on test 1, 47 of 47 paragraph parts, 21 of 24 hard sentences and 12 of 12 paragraphs step by step, and the input matches SubjectNet's. Two other drawings also trained:
+
+- three features into 512 slots, 32 ReLU, dropout and 8 Tanh units: 16,698 weights;
+- a plain vector of 20 into 6 Sigmoid units and three classes, on data of one's own: 147 weights.
+
+In the browser, switching the language changes the button, the settings shown and the code written, and is remembered after a reload. A branching net in Python is refused with a clear message.
 
 ## The notebook it writes
 
@@ -58,7 +79,8 @@ The training settings are epochs, batch size, learning rate (Adam), L2 and seed.
 ## Not yet
 
 - Version A for nets that branch, and dropout in version A.
-- Python export (PyTorch, and ONNX between the two languages, as draft 8 describes).
+- ONNX between the two languages, as draft 8 describes.
+- Branching nets and dropout in the Python version.
 - **Code → Diagram:** drawing a net from its code.
 
 By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)

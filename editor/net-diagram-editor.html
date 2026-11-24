@@ -34,6 +34,7 @@ textarea{font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;min-height:2
 .err{color:#b91c1c;font-size:12.5px;margin-top:4px;white-space:pre-wrap}
 .warn{color:#a16207;font-size:12.5px;margin-top:4px;white-space:pre-wrap}
 .okline{color:var(--ok);font-size:12.5px;margin-top:4px}
+body.lang-python .wl-only{display:none}body:not(.lang-python) .py-only{display:none}
 .stat{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:12.5px;margin-top:6px}
 .stat b{font-weight:600}
 .actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px}
@@ -60,7 +61,7 @@ svg:hover .port{opacity:.9}
 <body>
 <header>
   <h1><a href="../index.html" style="color:inherit;text-decoration:none">CCN Net Diagrams</a></h1>
-  <span class="sub">draw a small neural net · reads left → right · Diagram → Code writes a Wolfram notebook (.nb) with our own version and Wolfram's</span>
+  <span class="sub">draw a small neural net · reads left → right · Diagram → Code writes a Wolfram notebook (.nb) or a Python script (.py) that trains the net</span>
 </header>
 <main>
   <div id="stage">
@@ -108,14 +109,21 @@ svg:hover .port{opacity:.9}
 
     <section class="set">
       <h2>Training settings</h2>
-      <label>Notebook name</label><input type="text" id="sName" value="SubjectNetFromDiagram">
+      <label>Language</label>
+      <select id="sLang">
+        <option value="wolfram">Wolfram: a notebook (.nb), our own code and NetTrain</option>
+        <option value="python">Python: a script (.py), our own code (python/ccn_nets)</option>
+      </select>
+      <label id="lName">Notebook name</label><input type="text" id="sName" value="SubjectNetFromDiagram">
       <label>Data</label>
       <select id="sData">
-        <option value="subjectnet">SubjectNet's template data (evaluates SubjectNet.nb first)</option>
-        <option value="own">My own data (define it before evaluating)</option>
+        <option value="subjectnet">SubjectNet's template data</option>
+        <option value="own">My own data</option>
       </select>
-      <label>Where SubjectNet.nb is (a Wolfram expression)</label>
-      <input type="text" id="sPath" class="mono" value='FileNameJoin[{Quiet@Check[NotebookDirectory[], Directory[]], "SubjectNet.nb"}]'>
+      <div class="wl-only"><label>Where SubjectNet.nb is (a Wolfram expression)</label>
+      <input type="text" id="sPath" class="mono" value='FileNameJoin[{Quiet@Check[NotebookDirectory[], Directory[]], "SubjectNet.nb"}]'></div>
+      <div class="py-only"><label>Where the repository's python/ folder is, from the script's folder</label>
+      <input type="text" id="sPyPath" class="mono" value="."></div>
       <div class="row">
         <div><label>Epochs</label><input type="number" id="sEpochs" min="1" value="12"></div>
         <div><label>Batch size</label><input type="number" id="sBatch" min="1" value="64"></div>
@@ -126,7 +134,7 @@ svg:hover .port{opacity:.9}
         <div><label>L2</label><input type="text" id="sL2" value="0.0001"></div>
       </div>
       <label>Loss</label><div class="hint">Cross-entropy on the softmax outputs (fixed by the Softmax element).</div>
-      <div class="row" style="margin-top:6px">
+      <div class="row wl-only" style="margin-top:6px">
         <label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="sA" checked> version A, our own code</label>
         <label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="sB" checked> version B, NetTrain</label>
       </div>
@@ -135,7 +143,8 @@ svg:hover .port{opacity:.9}
     <section>
       <h2>Code</h2>
       <textarea id="code" readonly spellcheck="false" placeholder="Diagram → Code writes the notebook's cells here."></textarea>
-      <div class="hint">Downloaded as a notebook of Code cells. Save it beside <code>nets/SubjectNet.nb</code> to use SubjectNet's data, or change the path above.</div>
+      <div class="hint wl-only">Downloaded as a notebook of Code cells. Save it beside <code>nets/SubjectNet.nb</code> to use SubjectNet's data, or change the path above.</div>
+      <div class="hint py-only">Downloaded as a Python script. Save it in the repository's <code>python/</code> folder (or change the path above) and run <code>python3 &lt;name&gt;.py</code>; it needs only NumPy. With your own data, write <code>my_data.py</code> beside it, as the script's first lines say.</div>
     </section>
   </aside>
 </main>
@@ -428,7 +437,131 @@ gradientCheckGen[] := Module[{sz = Join[{10}, ConstantArray[4, Length[actsA]], {
   const notebook = C => '(* Content-type: application/vnd.wolfram.mathematica *)\n\nNotebook[{\n' + C.map(([st, t]) => `Cell[${nbStr(t)}, "${st}"]`).join(',\n\n') + '\n}]\n';
   const plain = C => C.map(([st, t]) => st === 'Code' ? t : st === 'Section' ? `(* ---------- ${t} ---------- *)` : `(* ${t} *)`).join('\n\n');
 
-  return {FEATURE_KEYS, FEATURE_LABEL, ACTS, ins, outs, classesOf, compile, cells, notebook, plain, summaryText, describe};
+  /* ---------- Python: a script that uses our own code in python/ccn_nets (no neural-net library) ---------- */
+  const FEATURE_PY = {
+    Own:'(["own:none"] if not own else ["o:" + w for w in own] + ["oL:" + own[-1]])',
+    Prev:'(([\"prev:none\"] if not prev else [\"p:\" + w for w in prev[-min(4, len(prev)):]]) if not own else [])',
+    Join:'["j:" + r["Join"]]',
+    Verb:'["v:" + r["Verb"]]',
+    After:'["a:" + w for w in after[:4]]\n            + (["a2:" + after[0] + "_" + after[1]] if len(after) >= 2 else [])',
+  };
+  const pyStr = s => JSON.stringify(String(s));
+  const pyNum = x => { const s = String(+x); return /[.e]/.test(s) ? s : s + '.0'; };
+  const pyName = s => (String(s).replace(/[^\w]+/g, '_').replace(/^(\d)/, '_$1') || 'net_from_diagram');
+
+  /* What stops a Python script: our own Python code handles chains only, in this issue */
+  function pythonProblems(spec) {
+    return spec.chain ? [] : ['Python (our own code) handles nets drawn as a chain only in this issue. Choose Wolfram for a net that branches.'];
+  }
+
+  function pyScript(D, spec, set) {
+    const s = spec, dim = s.input.dim, own = set.data === 'own', hashed = s.input.type === 'hashed';
+    const date = (set.date || new Date().toISOString()).slice(0, 16).replace('T', ' ');
+    const dense = s.graph.filter(g => g.kind === 'dense' || g.kind === 'softmax');
+    const sizes = [dim, ...dense.map(g => g.kind === 'dense' ? g.units : s.classes.length)];
+    const acts = dense.filter(g => g.kind === 'dense').map(g => g.act);
+    const dropped = s.graph.some(g => g.kind === 'dropout');
+    const isObjOther = s.classes.join() === 'object,other';
+    const L = [];
+    const add = (...lines) => L.push(...lines);
+    add('"""' + set.name + ': a net generated from a diagram by the CCN Net Diagram Editor (editor/net-diagram-editor.html)',
+      `on ${date} UTC.`, '',
+      'The net: ' + summaryText(s) + '.',
+      'Trained with our own code (python/ccn_nets/nn.py): forward pass, backpropagation and Adam written out,',
+      'softmax and cross-entropy our own; NumPy only for arrays. No neural-net library is used.' + (dropped ? '\nDropout is left out of this version (our own code has no dropout yet).' : ''),
+      own ? (hashed ? 'Data: your own. Write my_data.py beside this script with train_records and test_records:\n  lists of (record, class); a record is a dict with "Own", "Verb", "After", "Prev" and "Join",\n  as ccn_nets.motion.motion_subject gives.'
+        : `Data: your own. Write my_data.py beside this script with train_vectors and test_vectors:\n  lists of (vector of length ${dim}, class).`)
+        : "Data: SubjectNet's template data, made by ccn_nets.subjectnet (training and test words kept apart).",
+      '', 'Run:  python3 ' + pyName(set.name) + '.py',
+      '      Save this script in the repository\'s python/ folder, or set CCN_PYTHON below to that folder.', '',
+      'By Dara O Shayda and Hikari Noor Hoshino (\u661f\u91ce\u30cc\u30fc\u30eb)', 'AI System Programming Group', '',
+      '\u00a9 Computational Classnotes \u00b7 CC BY-NC-SA 4.0', '"""', '',
+      'import json', 'import os', 'import sys', 'import time', 'import zlib', '', 'import numpy as np', '',
+      'HERE = os.path.dirname(os.path.abspath(__file__))',
+      `CCN_PYTHON = os.path.normpath(os.path.join(HERE, ${pyStr(set.pyPath || '.')}))   # the repository's python/ folder`,
+      'sys.path.insert(0, CCN_PYTHON)', '',
+      'from ccn_nets.nn import Net, gradient_check, train   # noqa: E402', '',
+      '# The diagram as the editor saved it; open it again in the editor with Open',
+      'DIAGRAM = json.loads(' + JSON.stringify(JSON.stringify({diagram:D, settings:set})) + ')', '',
+      '# The net drawn: sizes from input to output, one activation per hidden layer; the last layer is softmax',
+      `SIZES = [${sizes.join(', ')}]`,
+      `ACTIVATIONS = [${acts.map(pyStr).join(', ')}]`,
+      `CLASSES = [${s.classes.map(pyStr).join(', ')}]`,
+      `DIM = ${dim}`,
+      `WEIGHTS_IN_DIAGRAM = ${s.params}`,
+      `EPOCHS, BATCH_SIZE, LEARNING_RATE, L2, SEED = ${Math.round(set.epochs)}, ${Math.round(set.batch)}, ${pyNum(set.lr)}, ${pyNum(set.l2)}, ${Math.round(set.seed)}`, '');
+    if (hashed) {
+      add(`# The features drawn in the diagram (${s.input.features.join(', ')}), hashed into ${dim} slots of 0s and 1s,`,
+        '# as in SubjectNet: zlib.crc32 gives the same slots as Hash[..., "CRC32"] in Wolfram',
+        'def diagram_features(r):',
+        '    own, prev, after = r["Own"], r["Prev"], r["After"]',
+        '    return (' + (s.input.features.map(k => FEATURE_PY[k]).join('\n            + ') || '[]') + ')', '', '',
+        'def diagram_vector(r):',
+        '    v = np.zeros(DIM)',
+        '    for f in diagram_features(r):',
+        '        v[zlib.crc32(f.encode("utf-8")) % DIM] = 1.0',
+        '    return v', '', '');
+    }
+    add('def load_data():', '    """Training and test inputs (rows) with their classes."""');
+    if (!own) {
+      add('    from ccn_nets import subjectnet',
+        '    train_data = subjectnet.make_data("train", 2000, 11)',
+        '    test_data = subjectnet.make_data("test", 600, 22)');
+      if (hashed) add('    x = lambda data: np.array([diagram_vector(r) for r, _ in data])');
+      else add(`    x = lambda data: np.array([subjectnet.feature_vector(r) for r, _ in data])   # SubjectNet's own 2,048 slots`);
+      add('    return x(train_data), [l for _, l in train_data], x(test_data), [l for _, l in test_data], train_data, test_data');
+    } else if (hashed) {
+      add('    sys.path.insert(0, HERE)',
+        '    from my_data import test_records, train_records',
+        '    x = lambda data: np.array([diagram_vector(r) for r, _ in data])',
+        '    return x(train_records), [l for _, l in train_records], x(test_records), [l for _, l in test_records], train_records, test_records');
+    } else {
+      add('    sys.path.insert(0, HERE)',
+        '    from my_data import test_vectors, train_vectors',
+        '    x = lambda data: np.array([np.asarray(v, dtype=float) for v, _ in data])',
+        '    return x(train_vectors), [l for _, l in train_vectors], x(test_vectors), [l for _, l in test_vectors], None, None');
+    }
+    add('', '', 'def main():',
+      '    x_train, labels_train, x_test, labels_test, train_data, test_data = load_data()');
+    if (!own && !hashed && dim !== 2048) add(`    print("SubjectNet's data has 2,048 slots, but the diagram's Slots element has ${dim}: draw a Hash, or set the Slots to 2048.")`);
+    add('    y_train = np.array([[1.0 if l == c else 0.0 for c in CLASSES] for l in labels_train])',
+      '    net = Net(SIZES, ACTIVATIONS).initialise(SEED)',
+      '    t0 = time.perf_counter()',
+      '    history = train(net, x_train, y_train, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_RATE, l2=L2, seed=SEED)',
+      '    seconds = time.perf_counter() - t0',
+      '    classify = lambda x: CLASSES[int(net.classify(np.atleast_2d(x))[0])]',
+      '    accuracy = float(np.mean([classify(x) == l for x, l in zip(x_test, labels_test)]))',
+      '    rows = [',
+      '        ("Weights in the diagram", WEIGHTS_IN_DIAGRAM),',
+      '        ("Weights in the trained net", net.weight_count),',
+      '        ("Training time, s", round(seconds, 2)),',
+      '        ("Loss, first and last epoch", [round(history[0], 4), round(history[-1], 4)]),',
+      '        ("Accuracy on the test data", accuracy),',
+      '        ("Gradient check, largest difference", gradient_check(tuple(ACTIVATIONS), classes=len(CLASSES))),',
+      '    ]');
+    if (!own && hashed) {
+      add('    from ccn_nets import motion, subjectnet',
+        '    # Is the input the same as SubjectNet\'s? (True when all five features and 2,048 slots are drawn)',
+        '    rows.append(("Same input as SubjectNet", all(np.array_equal(diagram_vector(r), subjectnet.feature_vector(r)) for r, _ in train_data[:50])))');
+      if (isObjOther) add(
+        '    # The trained net as a subject check for the motion reader:',
+        '    #   motion.motion_find(text, subject_check=check)',
+        '    check = lambda r: classify(diagram_vector(r))',
+        '    paragraphs, paragraph_parts, hard_parts = subjectnet.test_data()',
+        '    rows.append(("Paragraph parts right", f"{sum(check(r) == l for r, l in paragraph_parts)} of {len(paragraph_parts)}"))',
+        '    rows.append(("Hard sentences right", f"{sum(check(r) == l for r, l in hard_parts)} of {len(hard_parts)}"))',
+        '    rows.append(("Paragraphs right step by step", f"{sum(s[1] for s in subjectnet.paragraph_scores(paragraphs, check))} of {len(paragraphs)}"))');
+    }
+    add('    for name, value in rows:',
+      '        print(f"{name}: {value}")',
+      `    net.save(os.path.join(HERE, ${pyStr(pyName(set.name) + '.npz')}))   # the trained weights; Net.load reads them back`,
+      '    return net', '', '',
+      'if __name__ == "__main__":',
+      '    main()', '');
+    return L.join('\n');
+  }
+
+  return {FEATURE_KEYS, FEATURE_LABEL, ACTS, ins, outs, classesOf, compile, cells, notebook, plain, summaryText, describe, pyScript, pyName, pythonProblems};
 })();
 if (typeof module !== 'undefined') module.exports = NetCore;
 </script>
@@ -686,29 +819,36 @@ function trimWires(n) { D.wires = D.wires.filter(w => !(w.to.node === n.id && w.
 
 /* ---------- the net, read from the drawing ---------- */
 function settings() {
-  return {name:$('#sName').value.trim() || 'NetFromDiagram', data:$('#sData').value, path:$('#sPath').value.trim(),
+  return {lang:$('#sLang').value, name:$('#sName').value.trim() || 'NetFromDiagram', data:$('#sData').value, path:$('#sPath').value.trim(), pyPath:$('#sPyPath').value.trim() || '.',
     epochs:+$('#sEpochs').value || 12, batch:+$('#sBatch').value || 64, seed:Math.round(+$('#sSeed').value || 0),
     lr:+$('#sLr').value || 0.005, l2:+$('#sL2').value >= 0 ? +$('#sL2').value : 0.0001, versionA:$('#sA').checked, versionB:$('#sB').checked};
 }
 function summary() {
-  const r = NetCore.compile(D), box = $('#summary');
+  const r = NetCore.compile(D), box = $('#summary'), py = $('#sLang').value === 'python';
+  if (r.spec && py) {
+    r.errors = r.errors.concat(NetCore.pythonProblems(r.spec));
+    r.warnings = (r.warnings || []).filter(w => !/^The net branches/.test(w))
+      .map(w => /^Version A leaves dropout out/.test(w) ? 'The Python version leaves dropout out in this issue: our own code has no dropout yet.' : w);
+  }
   let h = '';
   if (r.spec) {
     const s = r.spec;
     h += `<div class="stat"><b>Input</b><span>${escA(s.input.type === 'hashed' ? s.input.features.map(k => NetCore.FEATURE_LABEL[k]).join(', ') + ' → ' + fmt(s.input.dim) + ' slots' : fmt(s.input.dim) + ' slots, your own vectors')}</span>
       <b>Layers</b><span>${escA(s.graph.map(g => g.kind === 'dense' ? `${g.units} ${g.act}` : g.kind === 'dropout' ? `dropout ${g.rate}` : g.kind === 'concat' ? 'join' : `softmax ${g.classes.length}`).join(' → '))}</span>
-      <b>Shape</b><span>${s.chain ? 'a chain (NetChain; our own code too)' : 'branches (NetGraph only)'}</span>
+      <b>Shape</b><span>${s.chain ? 'a chain' + (py ? '' : ' (NetChain; our own code too)') : 'branches' + (py ? '' : ' (NetGraph only)')}</span>
+      <b>Language</b><span>${py ? 'Python: our own code' : 'Wolfram: our own code and NetTrain'}</span>
       <b>Weights</b><span>${fmt(s.params)}</span></div>`;
   }
   h += r.errors.map(e => `<div class="err">${escA(e)}</div>`).join('') + (r.warnings || []).map(e => `<div class="warn">${escA(e)}</div>`).join('');
-  if (r.spec && !r.errors.length) h += `<div class="okline">Ready: Diagram → Code writes the notebook.</div>`;
+  if (r.spec && !r.errors.length) h += `<div class="okline">Ready: Diagram → Code writes the ${py ? 'Python script' : 'notebook'}.</div>`;
   box.innerHTML = h;
   return r;
 }
 function generate() {
   const r = summary();
-  if (!r.spec || r.errors.length) { $('#code').value = '(* The diagram is not complete yet:\n' + r.errors.map(e => '   ' + e).join('\n') + ' *)'; lastCells = null; return null; }
-  const set = settings();
+  const set = settings(), py = set.lang === 'python';
+  if (!r.spec || r.errors.length) { $('#code').value = (py ? '# Not ready yet:\n' + r.errors.map(e => '#   ' + e).join('\n') : '(* The diagram is not complete yet:\n' + r.errors.map(e => '   ' + e).join('\n') + ' *)'); lastCells = null; return null; }
+  if (py) { lastCells = {python:NetCore.pyScript(D, r.spec, set)}; $('#code').value = lastCells.python; return lastCells; }
   if (!set.versionA && !set.versionB) { $('#code').value = '(* Choose version A, version B or both in the training settings. *)'; lastCells = null; return null; }
   lastCells = NetCore.cells(D, r.spec, set);
   $('#code').value = NetCore.plain(lastCells);
@@ -716,9 +856,19 @@ function generate() {
 }
 function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
 $('#bD2C').onclick = generate;
-$('#bNb').onclick = () => { const c = generate(); if (c) download((settings().name.replace(/[^\w-]+/g, '') || 'NetFromDiagram') + '.nb', NetCore.notebook(c), 'application/vnd.wolfram.mathematica'); };
+$('#bNb').onclick = () => { const c = generate(); if (!c) return;
+  if (c.python) download(NetCore.pyName(settings().name) + '.py', c.python, 'text/x-python');
+  else download((settings().name.replace(/[^\w-]+/g, '') || 'NetFromDiagram') + '.nb', NetCore.notebook(c), 'application/vnd.wolfram.mathematica'); };
+function langView() {
+  const py = $('#sLang').value === 'python';
+  document.body.classList.toggle('lang-python', py);
+  $('#bNb').textContent = py ? 'Download .py' : 'Download .nb';
+  $('#lName').textContent = py ? 'Script name' : 'Notebook name';
+  $('#code').placeholder = py ? 'Diagram → Code writes the Python script here.' : "Diagram → Code writes the notebook's cells here.";
+}
+$('#sLang').addEventListener('change', () => { langView(); summary(); save(); if (lastCells) generate(); else $('#code').value = ''; });
 $('#bCopy').onclick = () => { const c = generate(); if (c && navigator.clipboard) navigator.clipboard.writeText($('#code').value); };
-['#sName', '#sData', '#sPath', '#sEpochs', '#sBatch', '#sSeed', '#sLr', '#sL2', '#sA', '#sB'].forEach(id => $(id).addEventListener('change', () => { save(); if (lastCells) generate(); }));
+['#sName', '#sData', '#sPath', '#sPyPath', '#sEpochs', '#sBatch', '#sSeed', '#sLr', '#sL2', '#sA', '#sB'].forEach(id => $(id).addEventListener('change', () => { save(); if (lastCells) generate(); }));
 
 /* ---------- toolbar ---------- */
 $('#bDel').onclick = delSel;
@@ -763,6 +913,7 @@ $('#bExample').onclick = () => { pushUndo(); D = subjectNetDiagram(); select(nul
 /* ---------- persistence ---------- */
 const KEY = 'ccn-net-diagrams-v1';
 function putSettings(s) {
+  if (s.lang) $('#sLang').value = s.lang; if (s.pyPath) $('#sPyPath').value = s.pyPath;
   if (s.name != null) $('#sName').value = s.name; if (s.data) $('#sData').value = s.data; if (s.path) $('#sPath').value = s.path;
   for (const [k, id] of [['epochs', '#sEpochs'], ['batch', '#sBatch'], ['seed', '#sSeed'], ['lr', '#sLr'], ['l2', '#sL2']]) if (s[k] != null) $(id).value = s[k];
   if (s.versionA != null) $('#sA').checked = !!s.versionA; if (s.versionB != null) $('#sB').checked = !!s.versionB;
@@ -771,7 +922,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify({D, settings:se
 function load() { try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); if (j && j.D) { D = j.D; if (j.settings) putSettings(j.settings); return true; } } catch (_) {} return false; }
 
 if (!load() || !D.nodes.length) D = subjectNetDiagram();
-render(); inspector(); requestAnimationFrame(fit);
+langView(); render(); inspector(); requestAnimationFrame(fit);
 window.addEventListener('resize', () => applyView());
 </script>
 </body>

@@ -79,7 +79,9 @@ Evaluate `tools/NearWords.nb` again whenever the motion vocabulary changes.
 ## Not yet
 
 - ONNX export, so that a net trained here can be read by Wolfram, and the other way round, as draft 8 describes.
-- Python output from the net diagram editor.
+- Branching nets and dropout in our own code.
+
+The net diagram editor (`editor/net-diagram-editor.html`) writes a Python script that uses this code: choose **Python** under Language.
 
 By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)
 AI System Programming Group
