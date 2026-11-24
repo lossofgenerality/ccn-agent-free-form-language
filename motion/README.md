@@ -7,7 +7,8 @@ The first simple operation of the agent free-form language. It reads spoken moti
 
 or whole paragraphs with motion phrases inside them, finds the motion parts, sets the rest aside, and turns each motion into a Wolfram Language `RotationTransform` or `TranslationTransform`. It copes with common dictation and grammar slips. See `Report.md` for how well, and how fast.
 
-**Authors:** Dara O Shayda and Hikari Noor Hoshino (星野ヌール), AI System Programmer
+**Authors:** Dara O Shayda and Hikari Noor Hoshino (星野ヌール)  
+AI System Programming Group
 
 ## Use
 
