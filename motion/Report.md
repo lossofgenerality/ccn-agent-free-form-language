@@ -18,6 +18,7 @@
 
 - Reading a phrase takes **about 7 ms** (the old version took about 3 ms). A paragraph takes **about 20 to 30 ms**.
 - The three paragraphs not right step by step each pick up one harmless extra step: a full turn or a pause that a person wouldn't count as a motion (see "Where it still falls short").
+- **Update, same day:** a small neural net now catches those three. It comes in two versions, one written entirely in our own code and one using Wolfram's neural-net functions, both switched on with `"SubjectCheck"`. With either one, all 12 paragraphs are right step by step. See `nets/SubjectNetReport.md`.
 
 ## How it was built
 
@@ -171,7 +172,7 @@ These are averages taken from the batch runs, not separate timings. The extra ti
 
 ## Where it still falls short
 
-1. **A motion verb about something else is read as a motion.** In the tests, "the camera holds on the kettle" became a pause, "the experience turns their sense of scale" a full turn, and "Mia turned to her brother" a full turn. They don't move the object, but each adds a step. A fix would need to know who the subject is (the camera, the experience, Mia) and keep only motions of the object. That is the job a small net, or a subject named in the agent's script, would do best.
+1. **A motion verb about something else is read as a motion.** In the tests, "the camera holds on the kettle" became a pause, "the experience turns their sense of scale" a full turn, and "Mia turned to her brother" a full turn. They don't move the object, but each adds a step. **Now handled by the subject check** (`nets/SubjectNet.nb`): with it on, all three are set aside and all 12 paragraphs are right step by step. It still misses some new shapes, for example "the cameraman slowly moves left" and "my heart sank".
 2. **Run-on dictation where "turn" is both verb and unit.** See above: 29 of 37 are read right.
 3. **A comma list can mean "one after another" or "together".** The code reads a list of actions as one after another, which suits narrative and lists of instructions. "Move up, spinning slowly" (with "-ing") stays together.
 4. **"Go up and down" still cancels out.** Parts joined by *and* are together, and the report says the directions cancel.

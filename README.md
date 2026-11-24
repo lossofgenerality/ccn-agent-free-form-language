@@ -23,6 +23,7 @@ The kernel pattern (modes, keys kept in the cloud, a settings block first) is ta
 ## First operations
 
 - `motion/MotionPhrases.nb`: reads motion phrases ("move along the path while spinning counterclockwise and move upwards"), or paragraphs with motion phrases inside them, into `RotationTransform` and `TranslationTransform`. See `motion/README.md` and the report on its output and performance, `motion/Report.md`; tests in `tests/MotionPhrasesTest.nb`, and a larger corpus with paragraphs in `tests/MotionPhrasesCorpus.nb`.
+- `nets/SubjectNet.nb`: the first of the agent's own nets (draft 8). It decides whether a motion part is about the object or about something else, in two versions: our own code with no Wolfram neural-net functions, and Wolfram's `NetChain`/`NetTrain`. The comparison is in `nets/SubjectNetReport.md`.
 
 Wolfram code in this repo is delivered as notebooks (`.nb`), never as `.wl` files.
 

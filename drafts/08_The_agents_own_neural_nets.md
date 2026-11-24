@@ -13,6 +13,10 @@ Own nets don't replace the conversational-construct. Open answers in the agent's
 - **exactness:** it gives the same answer every time, and it can be tested and scored;
 - **it is ours:** it is trained on CCN's data, kept in our cloud, and has its history in our records.
 
+## The first one, built (24 November 2026)
+
+`nets/SubjectNet.nb` is the first own net. It decides whether a motion part is about the object or about something else ("Mia turned to her brother"). It was built twice, on the same data and design: once entirely in our own code (forward pass, backpropagation and Adam written out, with no Wolfram neural-net functions) and once with `NetChain` and `NetTrain`. The two agreed on every decision. See `nets/SubjectNetReport.md`.
+
 ## Jobs worth a net
 
 | Net | Agent | Job | What it does with the answer |

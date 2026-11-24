@@ -69,6 +69,7 @@ Words that aren't understood are listed in the report and ignored, as with free 
 | `"Centre"` | `{0, 0, 0}` | the centre for *orbit around the centre* |
 | `"Step"` | `1` | the distance of a move with no amount |
 | `"Frame"` | `"World"` | `"Object"` makes moves follow the object's own heading, so *turn left then move forward* goes the new way |
+| `"SubjectCheck"` | `None` | a function that is given each motion part (as `MotionSubject` shows it) and answers `"object"` or `"other"`; parts about something else are set aside. `nets/SubjectNet.nb` builds two: `SubjectCheckA` (our own net) and `SubjectCheckB` (Wolfram's) |
 | `"Object"`, `"Snapshots"` | a small box with an arrow, 6 | for `MotionPlot` and `MotionAnimate` |
 
 `$MotionVocabulary` holds all the words, and the figures of speech to set aside. Add to its lists to extend the language.
