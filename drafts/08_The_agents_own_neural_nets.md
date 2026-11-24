@@ -101,6 +101,23 @@ Training uses random starting weights, so a net trained in Wolfram and one train
    - the use is in line with Anthropic's terms on using Claude's outputs to train models. Small task nets like these look to be fine, but we should check the current terms before step 9 of the plan (question 9 in file 5);
    - labelling by Claude, when we ask for it, is a listed purpose (`label`) and goes in the ledger like any other call.
 
+## GPU or CPU (for discussion)
+
+**Where we stand (24 November 2026).** Every net trained so far ran on the CPU only.
+
+- **Wolfram version B (`NetTrain`):** `TargetDevice -> "CPU"` is set explicitly, in `nets/SubjectNet.nb` and in every notebook the net diagram editor writes. That keeps the results reproducible and lets the notebooks run on any machine. A GPU in Wolfram needs a supported NVIDIA card, which a Mac does not have.
+- **Wolfram version A (our own code):** plain matrix arithmetic (`Dot`, `Exp`, `Total`), which runs on the CPU.
+- **Python (`python/ccn_nets`):** NumPy runs on the CPU only, both in Claude's workspace and on the owner's computer.
+
+**Why the CPU is enough for now.** The nets are small: SubjectNet has 65,634 weights and trains on 2,000 examples. It trains in about 1 second in Wolfram and 0.2 to 0.8 seconds in Python. At this size a GPU would bring little; moving the data onto it would cancel most of the gain.
+
+**When a GPU would matter.** Nets like the full-size transformers of `lossofgenerality/tensor-algebra-nets`, which are millions of weights trained on large sets of examples.
+
+**Open questions:**
+1. Which machine would train such nets: a cloud machine with an NVIDIA GPU, or the Wolfram Cloud?
+2. Should the editor offer a device setting? In Wolfram this would be `TargetDevice -> "GPU"`. In our own Python code it would need a GPU array library in place of NumPy, such as CuPy on NVIDIA cards.
+3. Results on a GPU are not bit-for-bit the same as on the CPU. The comparisons between Wolfram and Python made so far assume the CPU.
+
 ## Release and records
 
 - A net is used by an agent only after its scores are in a compile report and you have approved it. Retraining replaces the net in place.
