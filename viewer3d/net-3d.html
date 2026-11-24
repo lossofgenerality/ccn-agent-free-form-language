@@ -114,7 +114,7 @@ const N = 2048, H = 32, dz = 0.06, dx = 0.36, K = 10;
 const X = i => (i - 15.5) * dx, Zc = j => j * dz;
 const ZS = N * dz + 5;                       // where the sum row sits
 const PAL = {
-  light: {pos: '#d63a2a', neg: '#1f63d0', zero: '#9aa9ba', off: '#6f7d8f', bg: '#eef2f6', sky: '#1478c4', white: '#10253d', dim: .5, grid: [0xb9c5d2, 0xd5dde6], fog: [90, 260]},
+  light: {pos: '#d63a2a', neg: '#1f63d0', zero: '#9aa9ba', off: '#6f7d8f', bg: '#c4cfda', sky: '#1478c4', white: '#10253d', dim: .45, grid: [0x93a3b4, 0xadbac8], fog: [90, 260]},
   dark:  {pos: '#ff7d68', neg: '#5fb2ff', zero: '#46668c', off: '#93a0b0', bg: '#0f3155', sky: '#8fd3ff', white: '#f2f7fb', dim: .45, grid: [0x2f5d8c, 0x214a73], fog: [80, 260]}};
 let mode = 'light'; try { mode = localStorage.getItem('ccn-net3d-scene') || 'light'; } catch (e) {}
 const C = {}; for (const k of ['pos', 'neg', 'zero', 'off', 'bg', 'sky', 'white']) C[k] = new THREE.Color();
