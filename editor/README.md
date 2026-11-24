@@ -7,6 +7,10 @@
 
 The page keeps the structure of the CCN String Diagrams editor (`lossofgenerality/ccn-string-diagrams`): the canvas, drawing wires from port to port, moving, zooming, panning, undo, the inspector, Save and Open as JSON, and Export SVG. The string-diagram mathematics is replaced by the elements of a net.
 
+## Shared with tensor-algebra-nets
+
+`lossofgenerality/tensor-algebra-nets` shows this editor on its site, at `docs/net-diagrams.html`, by loading it from https://lossofgenerality.github.io/ccn-agent-free-form-language/editor/net-diagram-editor.html. A change pushed here therefore appears there at once; nothing needs copying. **Keep this file's name and place.** If it ever moves, change `EDITOR` in tensor-algebra-nets' `tools/units/build_glossary.py` and rebuild there.
+
 ## The elements
 
 | Element | Drawn as | What it is | Fields |
