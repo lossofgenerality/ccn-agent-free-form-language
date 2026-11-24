@@ -114,8 +114,8 @@ const N = 2048, H = 32, dz = 0.06, dx = 0.36, K = 10;
 const X = i => (i - 15.5) * dx, Zc = j => j * dz;
 const ZS = N * dz + 5;                       // where the sum row sits
 const PAL = {
-  light: {pos: '#d63a2a', neg: '#1f63d0', zero: '#9aa9ba', off: '#6f7d8f', bg: '#c4cfda', sky: '#1478c4', white: '#10253d', dim: .45, grid: [0x93a3b4, 0xadbac8], fog: [90, 260]},
-  dark:  {pos: '#ff7d68', neg: '#5fb2ff', zero: '#46668c', off: '#93a0b0', bg: '#0f3155', sky: '#8fd3ff', white: '#f2f7fb', dim: .45, grid: [0x2f5d8c, 0x214a73], fog: [80, 260]}};
+  light: {pos: '#d63a2a', neg: '#1f63d0', zero: '#9aa9ba', off: '#6f7d8f', bg: '#c4cfda', sky: '#1478c4', white: '#10253d', dim: .45, grid: [0x93a3b4, 0xadbac8], fog: [90, 260], heaven: '#13304f'},
+  dark:  {pos: '#ff7d68', neg: '#5fb2ff', zero: '#46668c', off: '#93a0b0', bg: '#0f3155', sky: '#8fd3ff', white: '#f2f7fb', dim: .45, grid: [0x2f5d8c, 0x214a73], fog: [80, 260], heaven: '#06152a'}};
 let mode = 'light'; try { mode = localStorage.getItem('ccn-net3d-scene') || 'light'; } catch (e) {}
 const C = {}; for (const k of ['pos', 'neg', 'zero', 'off', 'bg', 'sky', 'white']) C[k] = new THREE.Color();
 const tmp = new THREE.Object3D(), col = new THREE.Color();
@@ -133,12 +133,18 @@ const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 600);
 scene.add(new THREE.AmbientLight(0xffffff, 0.42)); scene.add(new THREE.HemisphereLight(0xffffff, 0x556677, 0.38));
 const sun = new THREE.DirectionalLight(0xffffff, 0.85); sun.position.set(20, 40, -10); scene.add(sun);
 let grid = null;
+// The floor is zero: a faintly see-through plane, so negative bars hang visibly below it
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshBasicMaterial({transparent: true, opacity: .62, depthWrite: false, side: THREE.DoubleSide}));
+floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, ZS / 2 + 10); floor.renderOrder = 1; scene.add(floor);
+const zeroLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({transparent: true, opacity: .9}));
+scene.add(zeroLines);
 function palette(m) {
   mode = m; const P = PAL[m]; for (const k in C) C[k].set(P[k]);
-  scene.background.set(P.bg); scene.fog.color.set(P.bg); scene.fog.near = P.fog[0]; scene.fog.far = P.fog[1];
+  scene.background.set(P.heaven); scene.fog.color.set(P.bg); scene.fog.near = P.fog[0]; scene.fog.far = P.fog[1];
+  floor.material.color.set(P.bg); zeroLines.material.color.set(m === 'light' ? '#10253d' : '#cfe6ff');
   if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
-  grid = new THREE.GridHelper(400, 200, P.grid[0], P.grid[1]); grid.position.set(0, -0.02, ZS / 2 + 10); scene.add(grid);
-  fig.style.background = P.bg; try { localStorage.setItem('ccn-net3d-scene', m); } catch (e) {}
+  grid = new THREE.GridHelper(400, 200, P.grid[0], P.grid[1]); grid.position.set(0, 0.003, ZS / 2 + 10); scene.add(grid);
+  fig.style.background = P.heaven; try { localStorage.setItem('ccn-net3d-scene', m); } catch (e) {}
 }
 palette(mode);
 
@@ -218,6 +224,10 @@ function build() {
    ['σ = ReLU → a₁', 'negatives become 0', ZS + 10], ['× W₂', 'object (front), other (back)', ZS + 14.9],
    ['= a₁ × W₂', 'then each row is added up', ZS + 19.9]].forEach(([t, s, z]) => put(label(t, .8, '#f2f7fb', s), R, .3, z));
   put(label('Σ + b₂ = z₂', .8, '#f2f7fb'), -3, .3, ZS + 25); put(label('softmax → p', .9, '#8fd3ff'), -3, .3, ZS + 30);
+  { const a = X(0) - .25, b = X(31) + .25, y = .006, z0 = -.2, z1 = Zc(N - 1) + .2, pts = [a, y, z0, b, y, z0, b, y, z0, b, y, z1, b, y, z1, a, y, z1, a, y, z1, a, y, z0];
+    for (const z of [ZS, ZS + 3, ZS + 6, ZS + 10, ZS + 14.5, ZS + 15.3, ZS + 19.5, ZS + 20.3]) pts.push(a, y, z, b, y, z);
+    for (const z of [ZS + 25, ZS + 30]) pts.push(-2.2, y, z, 2.2, y, z);
+    zeroLines.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); }
   state.flows = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({vertexColors: true, transparent: true, opacity: .45}));
   scene.add(state.flows);
 }
