@@ -20,6 +20,10 @@ Drafts for comment, in `drafts/`:
 
 The kernel pattern (modes, keys kept in the cloud, a settings block first) is taken from CCN Composite Eye.
 
+## First operations
+
+- `motion/MotionPhrases.wl`: reads motion phrases ("move along the path while spinning counterclockwise and move upwards") into `RotationTransform` and `TranslationTransform`. See `motion/README.md`; tests in `tests/MotionPhrasesTest.wl`.
+
 Files are updated in place; git keeps the history.
 
 © Computational Classnotes · CC BY-NC-SA 4.0
