@@ -218,8 +218,8 @@ function build() {
   setRow(state.rows.w2o, D.W2.map(r => r[0]), 4, xs); setRow(state.rows.w2t, D.W2.map(r => r[1]), 4, xs);
   // fixed labels on the right of each row
   const R = X(31) + 1.2, put = (s, x, y, z) => { s.position.set(x, y, z); scene.add(s); };
-  put(label('W₁ᵀ', 1.3, '#8fd3ff', '65,536 weights, fixed after training: the sentence only chooses which columns are used', [0, 0], true), R + 0.4, 1.2, -1);
-  put(label('x', 1.1, '#8fd3ff', '2048 slots; the lit ones are 1', [1, 0], true), X(0) - 2.4, 1.0, -2);
+  put(label('W₁ᵀ', .8, '#8fd3ff', '65,536 fixed weights', [0, 0], true), R + 0.4, 1.2, -1);
+  put(label('x', .8, '#8fd3ff', '2048 slots, lit ones = 1', [1, 0], true), X(0) - 2.4, 1.0, -2);
   [['Σ  W₁ᵀx', 'the lit columns, added up', ZS], ['+ b₁', 'bias', ZS + 3], ['= z₁', '', ZS + 6],
    ['σ = ReLU → a₁', 'negatives become 0', ZS + 10], ['× W₂', 'object (front), other (back)', ZS + 14.9],
    ['= a₁ × W₂', 'then each row is added up', ZS + 19.9]].forEach(([t, s, z]) => put(label(t, .8, '#f2f7fb', s), R, .3, z));
