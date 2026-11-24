@@ -496,8 +496,10 @@ function render() {
       const col = a.kind === 'slots' ? C.amber : C.grey;
       for (const s of ga) for (const t of gb) el('line', {x1:s.x, y1:s.y, x2:t.x, y2:t.y, stroke:col, class:'fan', opacity:a.kind === 'slots' ? 0.45 : 0.5}, g);
     } else {
-      el('path', {d, class:'wire' + (isSel ? ' sel' : '')}, g);
-      if (!isSel) el('path', {d:`M${q.x - 7},${q.y - 4} L${q.x - 1},${q.y} L${q.x - 7},${q.y + 4}`, fill:'none', stroke:C.grey, 'stroke-width':1.4}, g);
+      // the wire and its arrowhead stop short of the input port, so the port circle never covers the head
+      const e = {x:q.x - 9, y:q.y};
+      el('path', {d:wirePath(p, e), class:'wire' + (isSel ? ' sel' : '')}, g);
+      if (!isSel) el('path', {d:`M${e.x - 6},${e.y - 4} L${e.x},${e.y} L${e.x - 6},${e.y + 4}`, fill:'none', stroke:C.grey, 'stroke-width':1.4, 'stroke-linecap':'round', 'stroke-linejoin':'round'}, g);
     }
     el('path', {d, class:'wire-hit'}, g);
   }
