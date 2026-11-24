@@ -62,7 +62,7 @@ svg:hover .port{opacity:.9}
 <body>
 <header>
   <h1><a href="../index.html" style="color:inherit;text-decoration:none">CCN Net Diagrams</a></h1>
-  <span class="sub">draw a small neural net · reads left → right · Diagram → Code writes a Wolfram notebook (.nb) or a Python script (.py) that trains the net</span>
+  <span class="sub">draw a neural net, small or a transformer · reads left → right · Diagram → Code writes a Wolfram notebook (.nb) or a Python script (.py) that trains it</span>
 </header>
 <main>
   <div id="stage">
@@ -1436,7 +1436,10 @@ $('#exSel').onchange = e => { const k = e.target.value; if (!k) return; pushUndo
 $('#addSeq').onchange = e => { const k = e.target.value; if (k) addNode(k); e.target.value = ''; };
 
 /* ---------- persistence ---------- */
-const KEY = 'ccn-net-diagrams-v1';
+// ?example=<name> opens that example first, and keeps its own saved work apart from the editor's other pages
+// (tensor-algebra-nets opens it with ?example=tnparser; the free-form language opens it plain, on SubjectNet)
+const START = (() => { const k = new URLSearchParams(location.search).get('example'); return NetCore.EXAMPLES.some(([x]) => x === k) ? k : null; })();
+const KEY = 'ccn-net-diagrams-v1' + (START ? '-' + START : '');
 function putSettings(s) {
   if (s.lang) $('#sLang').value = s.lang; if (s.pyPath) $('#sPyPath').value = s.pyPath;
   if (s.name != null) $('#sName').value = s.name; if (s.data) $('#sData').value = s.data; if (s.path) $('#sPath').value = s.path;
@@ -1446,7 +1449,7 @@ function putSettings(s) {
 function save() { try { localStorage.setItem(KEY, JSON.stringify({D, settings:settings()})); } catch (_) {} }
 function load() { try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); if (j && j.D) { D = j.D; if (j.settings) putSettings(j.settings); return true; } } catch (_) {} return false; }
 
-if (!load() || !D.nodes.length) D = subjectNetDiagram();
+if (!load() || !D.nodes.length) { D = START ? NetCore.example(START) : subjectNetDiagram(); if (START) $('#sName').value = EXAMPLE_NAMES[START]; }
 langView(); render(); inspector(); requestAnimationFrame(fit);
 window.addEventListener('resize', () => applyView());
 </script>

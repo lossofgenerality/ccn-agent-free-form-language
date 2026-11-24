@@ -9,7 +9,9 @@ The page keeps the structure of the CCN String Diagrams editor (`lossofgeneralit
 
 ## Shared with tensor-algebra-nets
 
-`lossofgenerality/tensor-algebra-nets` shows this editor on its site, at `docs/net-diagrams.html`, by loading it from https://lossofgenerality.github.io/ccn-agent-free-form-language/editor/net-diagram-editor.html. A change pushed here therefore appears there at once; nothing needs copying. **Keep this file's name and place.** If it ever moves, change `EDITOR` in tensor-algebra-nets' `tools/units/build_glossary.py` and rebuild there.
+`lossofgenerality/tensor-algebra-nets` shows this editor on its site, at `docs/net-diagrams.html`, by loading it from https://lossofgenerality.github.io/ccn-agent-free-form-language/editor/net-diagram-editor.html?example=tnparser.
+
+**Opening on an example.** `?example=` followed by `subjectnet`, `ownet`, `tnparser`, `tnpolicy` or `tnvalue` opens the editor on that example. It also gives that page its own saved work in the browser, so a change made on the TensorNets page doesn't appear on this one, nor the other way round. Without it, the editor opens on SubjectNet, as on this project's site. A change pushed here therefore appears there at once; nothing needs copying. **Keep this file's name and place.** If it ever moves, change `EDITOR` in tensor-algebra-nets' `tools/units/build_glossary.py` and rebuild there.
 
 ## The elements
 
