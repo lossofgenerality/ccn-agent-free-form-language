@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CCN Net Diagrams — editor</title>
+<style>
+:root{--bg:#f6f4ee;--panel:#fffdf8;--ink:#1d1b16;--muted:#6b665a;--line:#d9d3c4;--accent:#7a2e1f;--accent2:#2d4a7a;--sel:#c2410c;--ok:#15803d;
+--purple:#534AB7;--purpleF:#EEEDFE;--teal:#0F6E56;--tealF:#E1F5EE;--coral:#993C1D;--coralF:#FAECE7;--amber:#EF9F27;--grey:#73726c;--greyF:#ecebe6}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+body{display:grid;grid-template-rows:auto 1fr auto;height:100vh}
+header{display:flex;align-items:baseline;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font:600 19px/1 system-ui;margin:0}
+header .sub{color:var(--muted);font-size:12px}
+main{display:grid;grid-template-columns:1fr 420px;min-height:0}
+#stage{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
+button{font:inherit;font-size:13px;padding:5px 10px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;color:var(--ink)}
+button:hover{border-color:#b9b09a;background:#fbf8f0}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+button.primary:hover{background:#651f13}
+.sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+svg#canvas{flex:1;width:100%;min-height:0;touch-action:none;
+  background:radial-gradient(circle,#e2ddcf 1px,transparent 1.3px) 0 0/24px 24px,#fbfaf6}
+aside{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:16px}
+section h2{font:600 11px/1 system-ui;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
+input[type=text],input[type=number],select,textarea{width:100%;font:13px system-ui;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+textarea{font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;min-height:220px;resize:vertical;white-space:pre}
+.insp label,.set label{display:block;font-size:12px;color:var(--muted);margin:6px 0 2px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.hint{font-size:12px;color:var(--muted)}
+.hint code,.mono{font:11.5px ui-monospace,monospace}
+.err{color:#b91c1c;font-size:12.5px;margin-top:4px;white-space:pre-wrap}
+.warn{color:#a16207;font-size:12.5px;margin-top:4px;white-space:pre-wrap}
+.okline{color:var(--ok);font-size:12.5px;margin-top:4px}
+.stat{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:12.5px;margin-top:6px}
+.stat b{font-weight:600}
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px}
+.actions button{padding:8px 4px;font-size:12.5px}
+footer{padding:6px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:12px;background:var(--panel)}
+.legend{position:absolute;left:10px;bottom:8px;font-size:11px;color:var(--muted);background:#fffdf8d9;padding:3px 8px;border-radius:4px;pointer-events:none}
+/* diagram */
+.wire{fill:none;stroke:var(--grey);stroke-width:1.4}
+.wire.sel{stroke:var(--sel);stroke-width:2.6}
+.wire-hit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
+.fan{stroke-width:.7;pointer-events:none}
+.node{cursor:move}
+.node.sel .outline{stroke:var(--sel)!important;stroke-width:2.4!important}
+.lbl{font:12px system-ui;text-anchor:middle;dominant-baseline:central;pointer-events:none;fill:#3d3d3a}
+.lblb{font:600 14px system-ui;dominant-baseline:central;pointer-events:none;fill:#2c2c2a}
+.port{fill:#fff;stroke:#9a9384;stroke-width:1.2;cursor:crosshair;opacity:0;transition:opacity .12s}
+svg:hover .port{opacity:.9}
+.port:hover{fill:var(--sel);stroke:var(--sel);opacity:1}
+.grip{fill:transparent}
+.node.sel .grip{fill:#c2410c18}
+.temp{fill:none;stroke:var(--sel);stroke-width:2;stroke-dasharray:5 4;pointer-events:none}
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="../README.md" style="color:inherit;text-decoration:none">CCN Net Diagrams</a></h1>
+  <span class="sub">draw a small neural net · reads left → right · Diagram → Code writes a Wolfram notebook (.nb) with our own version and Wolfram's</span>
+</header>
+<main>
+  <div id="stage">
+    <div class="toolbar">
+      <button data-add="feature" title="A feature source: a group of words from a motion part">+ Feature</button>
+      <button data-add="hash" title="Hashes its feature words into slots">+ Hash</button>
+      <button data-add="slots" title="The input vector">+ Slots</button>
+      <button data-add="dense" title="A layer of units with an activation">+ Layer</button>
+      <button data-add="dropout" title="Dropout (version B only in this issue)">+ Dropout</button>
+      <button data-add="concat" title="Joins two or more branches side by side (version B only)">+ Join</button>
+      <button data-add="softmax" title="The output: one unit per class, softmax">+ Softmax</button>
+      <span class="sep"></span>
+      <button id="bDel">Delete</button>
+      <button id="bUndo">Undo</button>
+      <button id="bClear">Clear</button>
+      <button id="bFit">Fit</button>
+      <span class="sep"></span>
+      <button id="bSvg">Export SVG</button>
+      <button id="bSave">Save</button>
+      <button id="bLoad">Open</button>
+      <input type="file" id="file" accept=".json,application/json" hidden>
+      <button id="bExample" title="Draw SubjectNet, the net in nets/SubjectNet.nb">Example: SubjectNet</button>
+    </div>
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+      <g id="world"><g id="gw"></g><g id="gn"></g><path id="temp" class="temp" d=""/></g>
+    </svg>
+    <div class="legend">drag an element to move · drag from a port (○) to another port to draw a wire · double-click to edit · Del deletes · scroll to zoom · drag the background to pan</div>
+  </div>
+
+  <aside>
+    <section>
+      <h2>The net</h2>
+      <div id="summary" class="hint"></div>
+      <div class="actions">
+        <button class="primary" id="bD2C">Diagram → Code</button>
+        <button class="primary" id="bNb">Download .nb</button>
+        <button class="primary" id="bCopy">Copy code</button>
+      </div>
+    </section>
+
+    <section class="insp">
+      <h2>Selection</h2>
+      <div id="insp" class="hint">Nothing selected.</div>
+    </section>
+
+    <section class="set">
+      <h2>Training settings</h2>
+      <label>Notebook name</label><input type="text" id="sName" value="SubjectNetFromDiagram">
+      <label>Data</label>
+      <select id="sData">
+        <option value="subjectnet">SubjectNet's template data (evaluates SubjectNet.nb first)</option>
+        <option value="own">My own data (define it before evaluating)</option>
+      </select>
+      <label>Where SubjectNet.nb is (a Wolfram expression)</label>
+      <input type="text" id="sPath" class="mono" value='FileNameJoin[{Quiet@Check[NotebookDirectory[], Directory[]], "SubjectNet.nb"}]'>
+      <div class="row">
+        <div><label>Epochs</label><input type="number" id="sEpochs" min="1" value="12"></div>
+        <div><label>Batch size</label><input type="number" id="sBatch" min="1" value="64"></div>
+        <div><label>Seed</label><input type="number" id="sSeed" value="1234"></div>
+      </div>
+      <div class="row">
+        <div><label>Learning rate (Adam)</label><input type="text" id="sLr" value="0.005"></div>
+        <div><label>L2</label><input type="text" id="sL2" value="0.0001"></div>
+      </div>
+      <label>Loss</label><div class="hint">Cross-entropy on the softmax outputs (fixed by the Softmax element).</div>
+      <div class="row" style="margin-top:6px">
+        <label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="sA" checked> version A, our own code</label>
+        <label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="sB" checked> version B, NetTrain</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Code</h2>
+      <textarea id="code" readonly spellcheck="false" placeholder="Diagram → Code writes the notebook's cells here."></textarea>
+      <div class="hint">Downloaded as a notebook of Code cells. Save it beside <code>nets/SubjectNet.nb</code> to use SubjectNet's data, or change the path above.</div>
+    </section>
+  </aside>
+</main>
+<footer><span>By Dara O Shayda and Hikari Noor Hoshino (星野ヌール), AI System Programming Group · © Computational Classnotes · CC BY-NC-SA 4.0</span><span>elements: feature · hash · slots · layer · dropout · join · softmax</span></footer>
+
+<script id="core">
+/* ================= CORE: the diagram read as a net, and the notebook written from it ================= */
+const NetCore = (() => {
+  const FEATURE_KEYS = ['Own', 'Verb', 'After', 'Prev', 'Join'];
+  const FEATURE_LABEL = {Own:'Own words', Verb:'Verb', After:'Words after', Prev:'Words before', Join:'Joining word'};
+  const ACTS = ['ReLU', 'Tanh', 'Sigmoid', 'None'];
+  const ins = n => n.kind === 'hash' || n.kind === 'concat' ? n.nIn : n.kind === 'feature' ? 0 : 1;
+  const outs = n => n.kind === 'softmax' ? 0 : 1;
+  const classesOf = n => String(n.classes || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  /* Read the drawing as a net. Returns {errors, warnings, spec}. */
+  function compile(D) {
+    const errors = [], warnings = [];
+    const byId = Object.fromEntries(D.nodes.map(n => [n.id, n]));
+    const inWires = id => D.wires.filter(w => w.to.node === id).sort((a, b) => a.to.port - b.to.port);
+    const outWires = id => D.wires.filter(w => w.from.node === id);
+    const sms = D.nodes.filter(n => n.kind === 'softmax');
+    if (!sms.length) { errors.push('Add a Softmax element: it is the output of the net.'); return {errors, warnings}; }
+    if (sms.length > 1) { errors.push('Only one Softmax output is supported.'); return {errors, warnings}; }
+    const sm = sms[0], classes = classesOf(sm);
+    if (classes.length < 2) errors.push('The Softmax element needs at least two classes, separated by commas.');
+    if (new Set(classes).size !== classes.length) errors.push('The class names must differ.');
+    // everything the output depends on
+    const need = new Set(), stack = [sm.id];
+    while (stack.length) { const id = stack.pop(); if (need.has(id)) continue; need.add(id); inWires(id).forEach(w => stack.push(w.from.node)); }
+    const used = D.nodes.filter(n => need.has(n.id));
+    D.nodes.filter(n => !need.has(n.id)).forEach(n => warnings.push(`${describe(n)} is not connected to the output and is left out.`));
+    for (const n of used) {
+      const k = ins(n), ws = inWires(n.id);
+      for (let i = 0; i < k; i++) if (!ws.some(w => w.to.port === i) && n.kind !== 'slots')
+        errors.push(`${describe(n)}: input ${k > 1 ? i + 1 + ' ' : ''}is not connected.`);
+    }
+    const slots = used.filter(n => n.kind === 'slots');
+    if (slots.length !== 1) { errors.push(slots.length ? 'Use one Slots element as the input of the net.' : 'Add a Slots element: it is the input vector of the net.'); return {errors, warnings}; }
+    const S = slots[0], hashW = inWires(S.id);
+    let input;
+    if (hashW.length) {
+      const h = byId[hashW[0].from.node];
+      if (h.kind !== 'hash') { errors.push('Slots can only be fed by a Hash element.'); return {errors, warnings}; }
+      const feats = inWires(h.id).map(w => byId[w.from.node]);
+      const bad = feats.filter(f => f.kind !== 'feature');
+      if (bad.length) errors.push('Only Feature elements can feed a Hash element.');
+      const keys = feats.filter(f => f.kind === 'feature').map(f => f.key);
+      const dup = keys.filter((k, i) => keys.indexOf(k) !== i);
+      if (dup.length) warnings.push(`The feature ${FEATURE_LABEL[dup[0]]} is fed in twice; once is enough.`);
+      if (+h.slots !== +S.size) warnings.push(`The Hash has ${h.slots} slots but the Slots element has ${S.size}; ${h.slots} is used.`);
+      input = {type:'hashed', features:[...new Set(keys)], dim:+h.slots};
+    } else input = {type:'vector', dim:+S.size};
+    if (!(input.dim >= 1)) errors.push('The number of slots must be a positive whole number.');
+    // order the layers between the input and the output
+    const layerNodes = used.filter(n => ['dense', 'dropout', 'concat', 'softmax'].includes(n.kind));
+    for (const n of used) if (['feature', 'hash'].includes(n.kind) && outWires(n.id).some(w => byId[w.to.node] && !['hash', 'slots'].includes(byId[w.to.node].kind)))
+      errors.push(`${describe(n)} can only feed ${n.kind === 'feature' ? 'a Hash' : 'Slots'}.`);
+    const order = [], seen = new Set(), visiting = new Set();
+    const visit = id => { if (seen.has(id)) return true; if (visiting.has(id)) return false; visiting.add(id);
+      for (const w of inWires(id)) if (!visit(w.from.node)) return false; visiting.delete(id); seen.add(id); order.push(id); return true; };
+    if (!visit(sm.id)) { errors.push('The wires go round in a loop.'); return {errors, warnings}; }
+    const layers = order.map(id => byId[id]).filter(n => layerNodes.includes(n));
+    const src = id => id === S.id ? 'input' : id;
+    const graph = layers.map(n => ({id:n.id, kind:n.kind, units:+n.units, act:n.act, rate:+n.rate, classes:n.kind === 'softmax' ? classes : undefined,
+      from:inWires(n.id).map(w => src(w.from.node))}));
+    for (const g of graph) for (const f of g.from) if (f !== 'input' && !layers.some(n => n.id === f)) errors.push(`${describe(byId[f])} cannot feed a layer.`);
+    for (const g of graph) {
+      if (g.kind === 'dense' && !(g.units >= 1)) errors.push('A layer needs a positive number of units.');
+      if (g.kind === 'dropout' && !(g.rate >= 0 && g.rate < 1)) errors.push('A dropout rate lies between 0 and 1.');
+    }
+    // sizes and weights
+    const size = {input:input.dim}; let params = 0;
+    for (const g of graph) {
+      const inSize = g.from.reduce((a, f) => a + (size[f] || 0), 0);
+      g.inSize = inSize;
+      if (g.kind === 'dense') { size[g.id] = g.units; params += inSize * g.units + g.units; }
+      else if (g.kind === 'softmax') { size[g.id] = classes.length; params += inSize * classes.length + classes.length; }
+      else size[g.id] = inSize;
+      g.weights = g.kind === 'dense' ? inSize * g.units + g.units : g.kind === 'softmax' ? inSize * classes.length + classes.length : 0;
+    }
+    // a chain: each layer fed by the one before it, nothing branches
+    const chain = graph.every((g, i) => g.kind !== 'concat' && g.from.length === 1 && g.from[0] === (i ? graph[i - 1].id : 'input'))
+      && graph.every(g => graph.filter(h => h.from.includes(g.id)).length <= (g.kind === 'softmax' ? 0 : 1));
+    if (!chain) warnings.push('The net branches: version B is written with NetGraph; version A (our own code) handles chains only in this issue and is left out.');
+    if (chain && graph.some(g => g.kind === 'dropout')) warnings.push('Version A leaves dropout out in this issue; version B keeps it.');
+    return {errors, warnings, spec:{input, graph, chain, classes, params}};
+  }
+  const describe = n => ({feature:`Feature “${FEATURE_LABEL[n.key] || n.key}”`, hash:'Hash', slots:'Slots', dense:`Layer (${n.units} ${n.act})`,
+    dropout:`Dropout ${n.rate}`, concat:'Join', softmax:'Softmax'})[n.kind] || n.kind;
+
+  /* ---------- Wolfram text ---------- */
+  const wlStr = s => '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+  const wlNum = x => { const s = String(+x); return /e/.test(s) ? s.replace(/e([+-]?\d+)/, ' 10.^$1').replace(/^(\S+) /, '$1*') : (s.includes('.') ? s : s + '.'); };
+  const wlInt = x => String(Math.round(+x));
+  const actLayer = {ReLU:'Ramp', Tanh:'Tanh', Sigmoid:'LogisticSigmoid', None:null};
+  const FEATURE_WL = {
+    Own:'If[own === {}, {"own:none"}, Join[("o:" <> #) & /@ own, {"oL:" <> Last[own]}]]',
+    Prev:'If[own === {}, If[prev === {}, {"prev:none"}, ("p:" <> #) & /@ Take[prev, -Min[4, Length[prev]]]], {}]',
+    Join:'{"j:" <> r["Join"]}',
+    Verb:'{"v:" <> r["Verb"]}',
+    After:'("a:" <> #) & /@ Take[after, UpTo[4]],\n   If[Length[after] >= 2, {"a2:" <> after[[1]] <> "_" <> after[[2]]}, {}]',
+  };
+  const SUBJECTNET = s => s.chain && s.input.type === 'hashed' && s.input.dim === 2048 && FEATURE_KEYS.every(k => s.input.features.includes(k))
+    && s.graph.length === 2 && s.graph[0].kind === 'dense' && s.graph[0].units === 32 && s.graph[0].act === 'ReLU'
+    && s.classes.join() === 'object,other';
+
+  function layerWL(g) {
+    if (g.kind === 'dense') { const a = actLayer[g.act]; return a ? [`LinearLayer[${g.units}]`, a] : [`LinearLayer[${g.units}]`]; }
+    if (g.kind === 'dropout') return [`DropoutLayer[${wlNum(g.rate)}]`];
+    if (g.kind === 'concat') return ['CatenateLayer[]'];
+    return [`LinearLayer[${g.classes.length}]`, 'SoftmaxLayer[]'];
+  }
+
+  /* The notebook's cells: [style, text] */
+  function cells(D, spec, set) {
+    const C = [], add = (style, text) => C.push([style, text]);
+    const s = spec, dim = s.input.dim, own = set.data === 'own', hashed = s.input.type === 'hashed';
+    const doA = set.versionA && s.chain, doB = set.versionB;
+    const date = (set.date || new Date().toISOString()).slice(0, 16).replace('T', ' ');
+    add('Title', `${set.name}: a net generated from a diagram`);
+    add('Text', `Generated by the CCN Net Diagram Editor (editor/net-diagram-editor.html) on ${date} UTC.\n` +
+      `The net: ${summaryText(s)}.\n` +
+      `Versions: ${[doA ? 'A, our own code (forward pass, backpropagation and Adam written out, no Wolfram neural-net functions)' : null,
+        doB ? `B, Wolfram's ${s.chain ? 'NetChain' : 'NetGraph'} and NetTrain` : null].filter(Boolean).join('; ') || 'none chosen'}.`);
+    add('Text', own ? 'Data: your own. Define the variables named in the Data section before evaluating the notebook.'
+      : 'Data: SubjectNet\'s template data. The notebook evaluates SubjectNet.nb first, which loads MotionPhrases.nb.');
+    add('Text', 'By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)\nAI System Programming Group');
+
+    add('Section', 'The diagram');
+    add('Code', `(* The diagram as the editor saved it; open it again in the editor with Open *)\ndiagramJSON = ${wlStr(JSON.stringify({diagram:D, settings:set}))};`);
+    add('Code', `netSpec = <|\n  "Input" -> <|"Type" -> ${wlStr(s.input.type)}, "Slots" -> ${dim}${hashed ? `, "Features" -> {${s.input.features.map(wlStr).join(', ')}}` : ''}|>,\n` +
+      `  "Layers" -> {${s.graph.map(g => g.kind === 'dense' ? `{"Layer", ${g.units}, ${wlStr(g.act)}}` : g.kind === 'dropout' ? `{"Dropout", ${wlNum(g.rate)}}`
+        : g.kind === 'concat' ? '{"Join"}' : `{"Softmax", ${g.classes.length}}`).join(', ')}},\n` +
+      `  "Classes" -> {${s.classes.map(wlStr).join(', ')}},\n  "Weights" -> ${s.params},\n` +
+      `  "Training" -> <|"Epochs" -> ${wlInt(set.epochs)}, "BatchSize" -> ${wlInt(set.batch)}, "LearningRate" -> ${wlNum(set.lr)}, "L2" -> ${wlNum(set.l2)}, "Seed" -> ${wlInt(set.seed)}|>|>;`);
+
+    add('Section', 'Data');
+    if (!own) add('Code', `(* SubjectNet.nb makes trainData and testData: pairs of a motion-part record and its label *)\nsubjectNetFile = ${set.path};\nNotebookEvaluate[subjectNetFile];`);
+    add('Code', `dim = ${dim};\nclasses = {${s.classes.map(wlStr).join(', ')}};`);
+    if (hashed) {
+      const parts = s.input.features.map(k => FEATURE_WL[k]);
+      add('Code', `(* The features drawn in the diagram, hashed into ${dim} slots of 0s and 1s, as in SubjectNet *)\n` +
+        `diagramFeatures[r_] := Module[{own = r["Own"], prev = r["Prev"], after = r["After"]},\n  Join[\n   ${parts.join(',\n   ') || '{}'}]];\n` +
+        `diagramVector[r_] := Module[{v = ConstantArray[0., dim]},\n  Scan[(v[[Mod[Hash[#, "CRC32"], dim] + 1]] = 1.) &, diagramFeatures[r]]; v];`);
+    }
+    if (own) {
+      add('Code', hashed
+        ? '(* Your data: trainRecords and testRecords, lists of {record, class}; a record is an Association with the keys\n   "Own", "Verb", "After", "Prev" and "Join", as MotionSubject gives *)\nIf[! ValueQ[trainRecords] || ! ValueQ[testRecords], Print["Define trainRecords and testRecords first."]];\n' +
+          'xTrain = diagramVector /@ trainRecords[[All, 1]]; labelsTrain = trainRecords[[All, 2]];\nxTest = diagramVector /@ testRecords[[All, 1]]; labelsTest = testRecords[[All, 2]];'
+        : `(* Your data: xTrainData and xTestData, lists of {vector of length ${dim}, class} *)\nIf[! ValueQ[xTrainData] || ! ValueQ[xTestData], Print["Define xTrainData and xTestData first."]];\n` +
+          'xTrain = N[xTrainData[[All, 1]]]; labelsTrain = xTrainData[[All, 2]];\nxTest = N[xTestData[[All, 1]]]; labelsTest = xTestData[[All, 2]];');
+    } else {
+      if (!hashed && dim !== 2048) add('Code', `(* SubjectNet's featureVector gives 2,048 slots, but the diagram's Slots element has ${dim} *)\nPrint["The Slots element should have 2048 slots for SubjectNet's data, or be fed by a Hash."];`);
+      add('Code', (hashed ? 'xTrain = diagramVector /@ trainData[[All, 1]];' : 'xTrain = featureVector /@ trainData[[All, 1]];  (* SubjectNet\'s own 2,048 slots *)') +
+        ' labelsTrain = trainData[[All, 2]];\n' +
+        (hashed ? 'xTest = diagramVector /@ testData[[All, 1]];' : 'xTest = featureVector /@ testData[[All, 1]];') + ' labelsTest = testData[[All, 2]];');
+      if (hashed) add('Code', '(* Is the diagram\'s input the same as SubjectNet\'s featureVector? (True when all five features and 2,048 slots are drawn) *)\n' +
+        'sameInputAsSubjectNet = (diagramVector /@ trainData[[;; 50, 1]]) === (featureVector /@ trainData[[;; 50, 1]])');
+    }
+    add('Code', 'yTrain = Function[l, N[Boole[# === l] & /@ classes]] /@ labelsTrain;\n{Length[xTrain], Length[xTest], Counts[labelsTrain]}');
+
+    if (doB) {
+      add('Section', `Version B: Wolfram's ${s.chain ? 'NetChain' : 'NetGraph'} and NetTrain`);
+      let net;
+      if (s.chain) net = `netB = NetChain[{${s.graph.flatMap(layerWL).join(', ')}}, "Input" -> dim,\n   "Output" -> NetDecoder[{"Class", classes}]];`;
+      else {
+        const nm = g => wlStr('n' + (s.graph.indexOf(g) + 1));
+        const layers = s.graph.map(g => { const L = layerWL(g); return `${nm(g)} -> ${L.length > 1 ? `NetChain[{${L.join(', ')}}]` : L[0]}`; });
+        const name = id => id === 'input' ? 'NetPort["Input"]' : nm(s.graph.find(g => g.id === id));
+        const conns = s.graph.map(g => `${g.from.length > 1 ? '{' + g.from.map(name).join(', ') + '}' : name(g.from[0])} -> ${nm(g)}`);
+        conns.push(`${nm(s.graph[s.graph.length - 1])} -> NetPort["Output"]`);
+        net = `netB = NetGraph[<|${layers.join(',\n    ')}|>,\n   {${conns.join(', ')}},\n   "Input" -> dim, "Output" -> NetDecoder[{"Class", classes}]];`;
+      }
+      add('Code', net + '\nInformation[netB, "ArraysTotalElementCount"]');
+      add('Code', `{timeB, trainedB} = AbsoluteTiming[NetTrain[netB, Thread[xTrain -> labelsTrain], MaxTrainingRounds -> ${wlInt(set.epochs)}, BatchSize -> ${wlInt(set.batch)},\n` +
+        `    Method -> {"ADAM", "LearningRate" -> ${wlNum(set.lr)}, "L2Regularization" -> ${wlNum(set.l2)}}, RandomSeeding -> ${wlInt(set.seed)},\n    TargetDevice -> "CPU", TrainingProgressReporting -> None]];\n` +
+        'classifyB = Function[x, trainedB[x]];\ntimeB');
+    }
+    if (doA) {
+      const dense = s.graph.filter(g => g.kind === 'dense' || g.kind === 'softmax');
+      const sizes = [dim, ...dense.map(g => g.kind === 'dense' ? g.units : s.classes.length)];
+      const acts = dense.filter(g => g.kind === 'dense').map(g => g.act);
+      add('Section', 'Version A: our own code');
+      add('Code', `(* The layers of the diagram: sizes from input to output, one activation per hidden layer; the last layer is softmax.\n   Only matrix arithmetic is used: Dot, Exp, Log, Total, Transpose${s.graph.some(g => g.kind === 'dropout') ? '. Dropout is left out of this version' : ''} *)\n` +
+        `sizesA = {${sizes.join(', ')}};\nactsA = {${acts.map(wlStr).join(', ')}};\n` +
+        `{epochsA, batchA, lrA, l2A, seedA} = {${wlInt(set.epochs)}, ${wlInt(set.batch)}, ${wlNum(set.lr)}, ${wlNum(set.l2)}, ${wlInt(set.seed)}};`);
+      add('Code', GENERIC_A);
+      add('Code', '{timeA, trainedA} = AbsoluteTiming[trainGen[xTrain, yTrain]];\n' +
+        'classifyA = Function[x, classes[[First@Ordering[-First[predictGen[trainedA["Params"], {x}]], 1]]]];\n' +
+        'ListLinePlot[trainedA["LossHistory"], AxesLabel -> {"epoch", "loss"}, PlotLabel -> "Version A: training loss"]');
+    }
+
+    add('Section', 'Checks');
+    const rows = [`{"", ${doA ? '"Version A"' : ''}${doA && doB ? ', ' : ''}${doB ? '"Version B"' : ''}}`];
+    const both = (a, b) => [doA ? a : null, doB ? b : null].filter(x => x !== null).join(', ');
+    rows.push(`{"Weights in the diagram", ${both(s.params, s.params)}}`);
+    rows.push(`{"Weights in the trained net", ${both('Total[(Times @@ Dimensions[#["W"]]) + Length[#["b"]] & /@ trainedA["Params"]]', 'Information[trainedB, "ArraysTotalElementCount"]')}}`);
+    rows.push(`{"Training time (s)", ${both('timeA', 'timeB')}}`);
+    rows.push(`{"Accuracy on the test data", ${both('N@Mean[Boole[MapThread[classifyA[#1] === #2 &, {xTest, labelsTest}]]]', 'N@Mean[Boole[MapThread[classifyB[#1] === #2 &, {xTest, labelsTest}]]]')}}`);
+    if (doA) rows.push(`{"Gradient check, largest difference", ${both('gradientCheckGen[]', '"—"')}}`);
+    if (doA || doB) add('Code', `Grid[{${rows.join(',\n   ')}}, Frame -> All, Alignment -> Left]`);
+    if (doA && doB) add('Code', '(* Do the two versions decide alike on the test data? *)\nN@Mean[Boole[MapThread[classifyA[#1] === classifyB[#2] &, {xTest, xTest}]]]');
+    if (!own && hashed) {
+      add('Code', '(* The trained nets as subject checks for MotionPhrases: MotionParse[text, "SubjectCheck" -> SubjectCheckFromDiagramA] *)\n' +
+        (doA ? 'SubjectCheckFromDiagramA = Function[r, classifyA[diagramVector[r]]];\n' : '') +
+        (doB ? 'SubjectCheckFromDiagramB = Function[r, classifyB[diagramVector[r]]];\n' : '') +
+        (s.classes.join() === 'object,other' ? `{${both('accuracy[SubjectCheckFromDiagramA, testData]', 'accuracy[SubjectCheckFromDiagramB, testData]')}}` : 'Null'));
+    }
+    if (!own && doA && SUBJECTNET(s) && +set.epochs === 12 && +set.batch === 64 && +set.lr === 0.005 && +set.l2 === 0.0001 && +set.seed === 1234)
+      add('Code', '(* This diagram is SubjectNet itself, with its settings: version A should match SubjectNet\'s own version A, modelA *)\n' +
+        'Max[Abs[Flatten[{trainedA["Params"][[1]]["W"] - modelA["Params"]["W1"], trainedA["Params"][[2]]["W"] - modelA["Params"]["W2"]}]]]');
+    add('Text', '© Computational Classnotes · CC BY-NC-SA 4.0');
+    return C;
+  }
+
+  const GENERIC_A = `actF = <|"ReLU" -> (# UnitStep[#] &), "Tanh" -> Tanh, "Sigmoid" -> LogisticSigmoid, "None" -> Identity|>;
+actD = <|"ReLU" -> (UnitStep[#1] &), "Tanh" -> (1 - #2^2 &), "Sigmoid" -> (#2 (1 - #2) &), "None" -> (1. &)|>;
+addRow[m_, b_] := m + ConstantArray[b, Length[m]];
+softmaxRows[z_] := With[{e = Exp[z - Max /@ z]}, e/Total[e, {2}]];
+
+initGen[sizes_, seed_] := (SeedRandom[seed];
+  Table[<|"W" -> RandomVariate[NormalDistribution[0, Sqrt[2./sizes[[k]]]], {sizes[[k]], sizes[[k + 1]]}],
+    "b" -> ConstantArray[0., sizes[[k + 1]]]|>, {k, Length[sizes] - 1}]);
+
+(* Forward pass: Z are the sums before the activation, A the outputs of each layer (A[[1]] is the input) *)
+forwardGen[p_, x_] := Module[{a = x, zs = {}, as = {x}, z, nL = Length[p]},
+  Do[z = addRow[a . p[[k]]["W"], p[[k]]["b"]];
+   a = If[k == nL, softmaxRows[z], actF[actsA[[k]]][z]];
+   AppendTo[zs, z]; AppendTo[as, a], {k, nL}];
+  <|"Z" -> zs, "A" -> as|>];
+predictGen[p_, x_] := Last[forwardGen[p, x]["A"]];
+
+lossGen[p_, x_, y_, lambda_] := With[{pr = predictGen[p, x]},
+  -Mean[Total[y Log[pr + 10.^-12], {2}]] + lambda/2 Total[Total[#["W"]^2, 2] & /@ p]];
+
+(* Backpropagation, written out, from the last layer to the first *)
+gradGen[p_, x_, y_, lambda_] := Module[{f = forwardGen[p, x], n = Length[x], nL = Length[p], dz, g},
+  g = ConstantArray[0, nL];
+  dz = (Last[f["A"]] - y)/n;
+  Do[
+   g[[k]] = <|"W" -> Transpose[f["A"][[k]]] . dz + lambda p[[k]]["W"], "b" -> Total[dz]|>;
+   If[k > 1, dz = (dz . Transpose[p[[k]]["W"]]) actD[actsA[[k - 1]]][f["Z"][[k - 1]], f["A"][[k]]]],
+   {k, nL, 1, -1}];
+  g];
+
+(* Adam, written out *)
+trainGen[x_, y_] := Module[{p = initGen[sizesA, seedA], m, v, t = 0, b1 = 0.9, b2 = 0.999, eps = 10.^-8, g, idx,
+   history = {}},
+  m = Map[0. # &, p, {2}]; v = m;
+  Do[
+   idx = Partition[RandomSample[Range[Length[x]]], UpTo[batchA]];
+   Do[
+    t++;
+    g = gradGen[p, x[[b]], y[[b]], l2A];
+    Do[
+     m[[k]] = Association[KeyValueMap[#1 -> b1 m[[k]][#1] + (1 - b1) #2 &, g[[k]]]];
+     v[[k]] = Association[KeyValueMap[#1 -> b2 v[[k]][#1] + (1 - b2) #2^2 &, g[[k]]]];
+     p[[k]] = Association[KeyValueMap[#1 -> p[[k]][#1] - lrA (m[[k]][#1]/(1 - b1^t))/(Sqrt[v[[k]][#1]/(1 - b2^t)] + eps) &,
+        p[[k]]]],
+     {k, Length[p]}],
+    {b, idx}];
+   AppendTo[history, lossGen[p, x, y, l2A]],
+   {epochsA}];
+  <|"Params" -> p, "LossHistory" -> history|>];
+
+(* The written-out gradient against small finite differences, on a small net of the same shape *)
+gradientCheckGen[] := Module[{sz = Join[{10}, ConstantArray[4, Length[actsA]], {Last[sizesA]}], x, y, p, g, e = 10.^-5, pairs},
+  SeedRandom[5];
+  x = RandomReal[{0, 1}, {6, 10}];
+  y = N[IdentityMatrix[Last[sizesA]][[RandomInteger[{1, Last[sizesA]}, 6]]]];
+  p = initGen[sz, 9]; g = gradGen[p, x, y, 0.01];
+  pairs = Flatten[Table[With[{pos = RandomInteger[{1, #}] & /@ Dimensions[p[[k]][key]]},
+      {(lossGen[ReplacePart[p, {k, key, Sequence @@ pos} -> Extract[p[[k]][key], pos] + e], x, y, 0.01] -
+          lossGen[ReplacePart[p, {k, key, Sequence @@ pos} -> Extract[p[[k]][key], pos] - e], x, y, 0.01])/(2 e),
+       Extract[g[[k]][key], pos]}],
+     {k, Length[p]}, {key, {"W", "b"}}], 1];
+  Max[Abs[pairs[[All, 1]] - pairs[[All, 2]]]]];`;
+
+  function summaryText(s) {
+    const inp = s.input.type === 'hashed' ? `${s.input.features.map(k => FEATURE_LABEL[k].toLowerCase()).join(', ')} hashed into ${s.input.dim.toLocaleString('en-GB')} slots` : `a vector of ${s.input.dim.toLocaleString('en-GB')} slots`;
+    const ls = s.graph.map(g => g.kind === 'dense' ? `${g.units} ${g.act} units` : g.kind === 'dropout' ? `dropout ${g.rate}` : g.kind === 'concat' ? 'a join' : `softmax over ${g.classes.join(', ')}`);
+    return `${inp}; ${ls.join(' → ')}; ${s.params.toLocaleString('en-GB')} weights`;
+  }
+
+  /* A Wolfram notebook (.nb) as text: every non-ASCII character written as \:xxxx */
+  const nbStr = s => '"' + [...s].map(ch => ch === '\\' ? '\\\\' : ch === '"' ? '\\"' : ch === '\n' ? '\\n'
+    : ch.codePointAt(0) < 128 ? ch : ch.codePointAt(0) < 0x10000 ? '\\:' + ch.codePointAt(0).toString(16).padStart(4, '0')
+    : '\\|' + ch.codePointAt(0).toString(16).padStart(6, '0')).join('') + '"';
+  const notebook = C => '(* Content-type: application/vnd.wolfram.mathematica *)\n\nNotebook[{\n' + C.map(([st, t]) => `Cell[${nbStr(t)}, "${st}"]`).join(',\n\n') + '\n}]\n';
+  const plain = C => C.map(([st, t]) => st === 'Code' ? t : st === 'Section' ? `(* ---------- ${t} ---------- *)` : `(* ${t} *)`).join('\n\n');
+
+  return {FEATURE_KEYS, FEATURE_LABEL, ACTS, ins, outs, classesOf, compile, cells, notebook, plain, summaryText, describe};
+})();
+if (typeof module !== 'undefined') module.exports = NetCore;
+</script>
+
+<script>
+/* ================= UI ================= */
+const $ = s => document.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+let D = {nodes:[], wires:[]}, sel = null, view = {x:0, y:0, s:1}, idc = 1, lastCells = null;
+const newId = p => p + Date.now().toString(36) + (idc++);
+const undo = [];
+const snapshot = () => JSON.stringify(D);
+const pushUndo = s => { undo.push(s ?? snapshot()); if (undo.length > 120) undo.shift(); };
+const byId = id => D.nodes.find(n => n.id === id);
+const C = {purple:'#534AB7', purpleF:'#EEEDFE', teal:'#0F6E56', tealF:'#E1F5EE', coral:'#993C1D', coralF:'#FAECE7', amber:'#EF9F27', grey:'#73726c', greyF:'#ecebe6', ink:'#2c2c2a'};
+
+/* ---------- geometry: reads left to right, inputs on the left of an element, outputs on the right ---------- */
+const CELLS = 14, LIT = [1, 4, 6, 9, 12];
+function size(n) {
+  switch (n.kind) {
+    case 'feature': return {w:120, h:30};
+    case 'hash': return {w:60, h:Math.max(100, n.nIn * 24 + 20)};
+    case 'slots': return {w:16, h:CELLS * 12};
+    case 'dense': { const k = Math.min(+n.units || 1, 8); return {w:22, h:(k - 1) * 28 + 22}; }
+    case 'dropout': return {w:84, h:30};
+    case 'concat': return {w:14, h:Math.max(60, n.nIn * 26 + 12)};
+    case 'softmax': { const k = Math.max(NetCore.classesOf(n).length, 1); return {w:54, h:(k - 1) * 64 + 56}; }
+  }
+  return {w:40, h:40};
+}
+function portPos(n, side, i) {
+  const {w, h} = size(n), k = side === 'in' ? NetCore.ins(n) : NetCore.outs(n);
+  if (side === 'out') return {x:n.x + w / 2, y:n.y};
+  return {x:n.x - w / 2, y:k <= 1 ? n.y : n.y - h / 2 + (i + 0.5) * h / k};
+}
+// the points the fan of connections leaves from or arrives at
+function glyphs(n, side) {
+  const {w, h} = size(n);
+  if (n.kind === 'slots') return LIT.map(i => ({x:n.x + (side === 'out' ? w / 2 : -w / 2), y:n.y - h / 2 + i * 12 + 6}));
+  if (n.kind === 'dense') { const k = Math.min(+n.units || 1, 8); return Array.from({length:k}, (_, i) => ({x:n.x + (side === 'out' ? 9 : -9), y:n.y - h / 2 + 11 + i * 28})); }
+  if (n.kind === 'softmax') { const k = NetCore.classesOf(n).length; return Array.from({length:k}, (_, i) => ({x:n.x - 12, y:n.y - h / 2 + 28 + i * 64})); }
+  return null;
+}
+function wirePath(p, q) { const c = Math.max(24, Math.abs(q.x - p.x) / 2); return `M${p.x},${p.y} C${p.x + c},${p.y} ${q.x - c},${q.y} ${q.x},${q.y}`; }
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+const text = (parent, x, y, s, cls = 'lbl', extra = {}) => { const t = el('text', {x, y, class:cls, ...extra}, parent); t.textContent = s; return t; };
+const fmt = x => (+x).toLocaleString('en-GB');
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+
+/* ---------- render ---------- */
+function render() {
+  const gw = $('#gw'), gn = $('#gn'); gw.innerHTML = ''; gn.innerHTML = '';
+  for (const w of D.wires) {
+    const a = byId(w.from.node), b = byId(w.to.node); if (!a || !b) continue;
+    const p = portPos(a, 'out', w.from.port), q = portPos(b, 'in', w.to.port), d = wirePath(p, q);
+    const g = el('g', {'data-wire':w.id}, gw), isSel = sel && sel.type === 'wire' && sel.id === w.id;
+    const ga = glyphs(a, 'out'), gb = glyphs(b, 'in');
+    if (ga && gb && !isSel) {
+      const col = a.kind === 'slots' ? C.amber : C.grey;
+      for (const s of ga) for (const t of gb) el('line', {x1:s.x, y1:s.y, x2:t.x, y2:t.y, stroke:col, class:'fan', opacity:a.kind === 'slots' ? 0.45 : 0.5}, g);
+    } else {
+      el('path', {d, class:'wire' + (isSel ? ' sel' : '')}, g);
+      if (!isSel) el('path', {d:`M${q.x - 7},${q.y - 4} L${q.x - 1},${q.y} L${q.x - 7},${q.y + 4}`, fill:'none', stroke:C.grey, 'stroke-width':1.4}, g);
+    }
+    el('path', {d, class:'wire-hit'}, g);
+  }
+  for (const n of D.nodes) {
+    const g = el('g', {'data-node':n.id, class:'node' + (sel && sel.type === 'node' && sel.id === n.id ? ' sel' : '')}, gn);
+    const {w, h} = size(n), x0 = n.x - w / 2, y0 = n.y - h / 2;
+    el('rect', {x:x0 - 8, y:y0 - 8, width:w + 16, height:h + 16, rx:6, class:'grip'}, g);
+    if (n.kind === 'feature') {
+      el('rect', {x:x0, y:y0, width:w, height:h, rx:4, fill:C.purpleF, stroke:C.purple, 'stroke-width':0.8, class:'outline'}, g);
+      text(g, n.x, n.y, NetCore.FEATURE_LABEL[n.key] || n.key, 'lbl', {fill:C.purple});
+    } else if (n.kind === 'hash') {
+      el('polygon', {points:`${x0},${y0} ${x0 + w},${n.y - h * 0.22} ${x0 + w},${n.y + h * 0.22} ${x0},${y0 + h}`, fill:C.greyF, stroke:C.grey, 'stroke-width':0.8, class:'outline'}, g);
+      text(g, n.x - 2, n.y, 'Hash');
+      text(g, n.x, y0 + h + 16, `${fmt(n.slots)} slots`);
+    } else if (n.kind === 'slots') {
+      for (let i = 0; i < CELLS; i++) el('rect', {x:x0, y:y0 + i * 12, width:w, height:12, fill:LIT.includes(i) ? C.amber : '#fff', stroke:C.grey, 'stroke-width':0.6}, g);
+      el('rect', {x:x0, y:y0, width:w, height:h, fill:'none', stroke:C.grey, 'stroke-width':0.8, class:'outline'}, g);
+      text(g, n.x, y0 + h + 16, `${fmt(n.size)} slots`);
+    } else if (n.kind === 'dense') {
+      const k = Math.min(+n.units || 1, 8);
+      el('rect', {x:x0 - 4, y:y0 - 4, width:w + 8, height:h + 8, rx:10, fill:'none', stroke:'transparent', class:'outline'}, g);
+      for (let i = 0; i < k; i++) el('circle', {cx:n.x, cy:y0 + 11 + i * 28, r:9, fill:C.tealF, stroke:C.teal, 'stroke-width':0.8}, g);
+      if (+n.units > 8) text(g, n.x + 20, n.y, '⋮', 'lbl');
+      text(g, n.x, y0 + h + 18, `${fmt(n.units)} ${n.act === 'None' ? 'linear' : n.act} units`);
+    } else if (n.kind === 'dropout') {
+      el('rect', {x:x0, y:y0, width:w, height:h, rx:4, fill:'#fff', stroke:C.grey, 'stroke-width':0.8, 'stroke-dasharray':'3 2', class:'outline'}, g);
+      text(g, n.x, n.y, `Dropout ${n.rate}`);
+    } else if (n.kind === 'concat') {
+      el('rect', {x:x0, y:y0, width:w, height:h, rx:3, fill:C.greyF, stroke:C.grey, 'stroke-width':0.8, class:'outline'}, g);
+      text(g, n.x, y0 + h + 16, 'Join');
+    } else if (n.kind === 'softmax') {
+      const cl = NetCore.classesOf(n);
+      el('rect', {x:x0, y:y0, width:w, height:h, rx:8, fill:'none', stroke:C.grey, 'stroke-width':0.8, 'stroke-dasharray':'4 3', class:'outline'}, g);
+      cl.forEach((c, i) => {
+        const cy = y0 + 28 + i * 64;
+        el('circle', {cx:n.x, cy, r:12, fill:C.coralF, stroke:C.coral, 'stroke-width':0.8}, g);
+        el('line', {x1:x0 + w + 2, y1:cy, x2:x0 + w + 20, y2:cy, stroke:C.grey, 'stroke-width':1.2}, g);
+        el('path', {d:`M${x0 + w + 15},${cy - 4} L${x0 + w + 21},${cy} L${x0 + w + 15},${cy + 4}`, fill:'none', stroke:C.grey, 'stroke-width':1.2}, g);
+        text(g, x0 + w + 26, cy, cap(c), 'lblb');
+      });
+      text(g, n.x, y0 + h + 16, 'Softmax');
+    }
+    for (let i = 0; i < NetCore.ins(n); i++) { const p = portPos(n, 'in', i); el('circle', {cx:p.x, cy:p.y, r:6, class:'port', 'data-pn':n.id, 'data-side':'in', 'data-port':i}, gn); }
+    for (let i = 0; i < NetCore.outs(n); i++) { const p = portPos(n, 'out', i); el('circle', {cx:p.x, cy:p.y, r:6, class:'port', 'data-pn':n.id, 'data-side':'out', 'data-port':i}, gn); }
+  }
+  applyView(); summary(); save();
+}
+function applyView() { $('#world').setAttribute('transform', `scale(${view.s}) translate(${-view.x},${-view.y})`); }
+function fit() {
+  const svg = $('#canvas'), r = svg.getBoundingClientRect();
+  if (!D.nodes.length || !r.width) { view = {x:0, y:0, s:1}; applyView(); return; }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  D.nodes.forEach(n => { const {w, h} = size(n), extra = n.kind === 'softmax' ? 90 : 10; x0 = Math.min(x0, n.x - w / 2 - 10); x1 = Math.max(x1, n.x + w / 2 + extra); y0 = Math.min(y0, n.y - h / 2 - 10); y1 = Math.max(y1, n.y + h / 2 + 26); });
+  const s = Math.min(1.6, (r.width - 60) / (x1 - x0), (r.height - 60) / (y1 - y0));
+  view.s = Math.max(0.2, s); view.x = (x0 + x1) / 2 - r.width / 2 / view.s; view.y = (y0 + y1) / 2 - r.height / 2 / view.s;
+  applyView();
+}
+
+/* ---------- interaction (as in the CCN String Diagrams editor) ---------- */
+const svg = $('#canvas');
+const toWorld = e => { const r = svg.getBoundingClientRect(); return {x:(e.clientX - r.left) / view.s + view.x, y:(e.clientY - r.top) / view.s + view.y}; };
+let drag = null;
+svg.addEventListener('pointerdown', e => {
+  const t = e.target, pt = toWorld(e);
+  if (t.classList.contains('port')) {
+    drag = {type:'wire', node:t.dataset.pn, side:t.dataset.side, port:+t.dataset.port};
+    drag.p = portPos(byId(drag.node), drag.side, drag.port);
+    svg.setPointerCapture(e.pointerId); e.preventDefault(); return;
+  }
+  const g = t.closest('[data-node]');
+  if (g) { const n = byId(g.dataset.node); select({type:'node', id:n.id}); drag = {type:'move', n, ox:pt.x - n.x, oy:pt.y - n.y, snap:snapshot(), moved:false}; svg.setPointerCapture(e.pointerId); return; }
+  const w = t.closest('[data-wire]');
+  if (w) { select({type:'wire', id:w.dataset.wire}); return; }
+  select(null);
+  drag = {type:'pan', sx:e.clientX, sy:e.clientY, vx:view.x, vy:view.y}; svg.setPointerCapture(e.pointerId);
+});
+svg.addEventListener('pointermove', e => {
+  if (!drag) return; const pt = toWorld(e);
+  if (drag.type === 'wire') $('#temp').setAttribute('d', drag.side === 'out' ? wirePath(drag.p, pt) : wirePath(pt, drag.p));
+  else if (drag.type === 'move') { drag.n.x = Math.round((pt.x - drag.ox) / 5) * 5; drag.n.y = Math.round((pt.y - drag.oy) / 5) * 5; drag.moved = true; render(); }
+  else if (drag.type === 'pan') { view.x = drag.vx - (e.clientX - drag.sx) / view.s; view.y = drag.vy - (e.clientY - drag.sy) / view.s; applyView(); }
+});
+svg.addEventListener('pointerup', e => {
+  if (!drag) return;
+  if (drag.type === 'wire') {
+    $('#temp').setAttribute('d', '');
+    const t = document.elementFromPoint(e.clientX, e.clientY);
+    if (t && t.classList && t.classList.contains('port') && t.dataset.side !== drag.side && t.dataset.pn !== drag.node) {
+      const other = {node:t.dataset.pn, side:t.dataset.side, port:+t.dataset.port};
+      const from = drag.side === 'out' ? drag : other, to = drag.side === 'out' ? other : drag;
+      connect({node:from.node, port:from.port}, {node:to.node, port:to.port});
+    }
+  } else if (drag.type === 'move' && drag.moved) pushUndo(drag.snap);
+  drag = null;
+});
+svg.addEventListener('wheel', e => {
+  e.preventDefault(); const pt = toWorld(e); const f = Math.exp(-e.deltaY * 0.0015);
+  const s = Math.min(4, Math.max(0.15, view.s * f)); const r = svg.getBoundingClientRect();
+  view.s = s; view.x = pt.x - (e.clientX - r.left) / s; view.y = pt.y - (e.clientY - r.top) / s; applyView();
+}, {passive:false});
+svg.addEventListener('dblclick', e => { const g = e.target.closest('[data-node]'); if (g) { select({type:'node', id:g.dataset.node}); const f = $('#insp input, #insp select'); if (f) f.focus(); } });
+document.addEventListener('keydown', e => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && sel) { e.preventDefault(); delSel(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); doUndo(); }
+});
+
+// an input port takes one wire; an output may feed several (a branch)
+function connect(from, to) {
+  pushUndo();
+  D.wires = D.wires.filter(w => !(w.to.node === to.node && w.to.port === to.port));
+  D.wires.push({id:newId('w'), from, to});
+  render();
+}
+function delSel() {
+  if (!sel) return; pushUndo();
+  if (sel.type === 'node') { D.nodes = D.nodes.filter(n => n.id !== sel.id); D.wires = D.wires.filter(w => w.from.node !== sel.id && w.to.node !== sel.id); }
+  else D.wires = D.wires.filter(w => w.id !== sel.id);
+  select(null);
+}
+function doUndo() { if (!undo.length) return; D = JSON.parse(undo.pop()); select(null); }
+function select(s) { sel = s; render(); inspector(); }
+
+const DEFAULTS = {
+  feature:{kind:'feature', key:'Own'},
+  hash:{kind:'hash', nIn:5, slots:2048},
+  slots:{kind:'slots', size:2048},
+  dense:{kind:'dense', units:32, act:'ReLU'},
+  dropout:{kind:'dropout', rate:0.5},
+  concat:{kind:'concat', nIn:2},
+  softmax:{kind:'softmax', classes:'object, other'},
+};
+function addNode(kind) {
+  pushUndo();
+  const r = svg.getBoundingClientRect();
+  const c = {x:view.x + r.width / 2 / view.s + (Math.random() - 0.5) * 80, y:view.y + r.height / 2 / view.s + (Math.random() - 0.5) * 60};
+  const n = Object.assign({id:newId('n'), x:Math.round(c.x), y:Math.round(c.y)}, DEFAULTS[kind]);
+  if (kind === 'feature') { const used = D.nodes.filter(m => m.kind === 'feature').map(m => m.key); n.key = NetCore.FEATURE_KEYS.find(k => !used.includes(k)) || 'Own'; }
+  D.nodes.push(n); select({type:'node', id:n.id});
+}
+document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => addNode(b.dataset.add));
+
+/* ---------- inspector ---------- */
+const escA = s => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+function inspector() {
+  const box = $('#insp');
+  if (!sel) { box.className = 'hint'; box.innerHTML = 'Nothing selected. Click an element or a wire.'; return; }
+  box.className = '';
+  if (sel.type === 'wire') {
+    const w = D.wires.find(x => x.id === sel.id); if (!w) return;
+    box.innerHTML = `<div class="hint">A wire from ${escA(NetCore.describe(byId(w.from.node)))} to ${escA(NetCore.describe(byId(w.to.node)))}.</div><div class="row" style="margin-top:8px"><button id="iDel">Delete wire</button></div>`;
+    $('#iDel').onclick = delSel; return;
+  }
+  const n = byId(sel.id); if (!n) return;
+  const opt = (vals, cur, lab = v => v) => vals.map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${escA(lab(v))}</option>`).join('');
+  const H = {
+    feature:`<label>Feature</label><select id="iKey">${opt(NetCore.FEATURE_KEYS, n.key, k => NetCore.FEATURE_LABEL[k])}</select>
+      <div class="hint" style="margin-top:6px">The words of the motion part this feature reads, as MotionSubject gives them.</div>`,
+    hash:`<div class="row"><div><label>Inputs</label><input type="number" id="iNIn" min="1" max="12" value="${n.nIn}"></div>
+      <div><label>Slots</label><input type="number" id="iSlots" min="1" value="${n.slots}"></div></div>
+      <div class="hint" style="margin-top:6px">Each feature word lands in slot Mod[Hash[word, "CRC32"], slots] + 1.</div>`,
+    slots:`<label>Slots (the length of the input vector)</label><input type="number" id="iSize" min="1" value="${n.size}">
+      <div class="hint" style="margin-top:6px">Fed by a Hash, it takes the Hash's slots. With nothing feeding it, it is a plain input vector for your own data.</div>`,
+    dense:`<div class="row"><div><label>Units</label><input type="number" id="iUnits" min="1" value="${n.units}"></div>
+      <div><label>Activation</label><select id="iAct">${opt(NetCore.ACTS, n.act)}</select></div></div>`,
+    dropout:`<label>Rate</label><input type="number" id="iRate" min="0" max="0.95" step="0.05" value="${n.rate}">`,
+    concat:`<label>Inputs</label><input type="number" id="iNIn" min="2" max="8" value="${n.nIn}">`,
+    softmax:`<label>Classes, separated by commas</label><input type="text" id="iClasses" value="${escA(n.classes)}">
+      <div class="hint" style="margin-top:6px">With SubjectNet's data the classes are <code>object, other</code>.</div>`,
+  };
+  box.innerHTML = `<div class="hint" style="margin-bottom:4px">${escA(NetCore.describe(n))}</div>` + (H[n.kind] || '') + `<div class="row" style="margin-top:10px"><button id="iDel">Delete</button></div>`;
+  $('#iDel').onclick = delSel;
+  const on = (id, fn) => { const x = $(id); if (x) x.addEventListener('change', () => { pushUndo(); fn(x.value); trimWires(n); render(); inspector(); }); };
+  on('#iKey', v => n.key = v);
+  on('#iNIn', v => n.nIn = Math.max(n.kind === 'concat' ? 2 : 1, Math.min(12, Math.round(+v) || 1)));
+  on('#iSlots', v => n.slots = Math.max(1, Math.round(+v) || 1));
+  on('#iSize', v => n.size = Math.max(1, Math.round(+v) || 1));
+  on('#iUnits', v => n.units = Math.max(1, Math.round(+v) || 1));
+  on('#iAct', v => n.act = v);
+  on('#iRate', v => n.rate = Math.min(0.95, Math.max(0, +v || 0)));
+  on('#iClasses', v => n.classes = v);
+}
+function trimWires(n) { D.wires = D.wires.filter(w => !(w.to.node === n.id && w.to.port >= NetCore.ins(n)) && !(w.from.node === n.id && w.from.port >= NetCore.outs(n))); }
+
+/* ---------- the net, read from the drawing ---------- */
+function settings() {
+  return {name:$('#sName').value.trim() || 'NetFromDiagram', data:$('#sData').value, path:$('#sPath').value.trim(),
+    epochs:+$('#sEpochs').value || 12, batch:+$('#sBatch').value || 64, seed:Math.round(+$('#sSeed').value || 0),
+    lr:+$('#sLr').value || 0.005, l2:+$('#sL2').value >= 0 ? +$('#sL2').value : 0.0001, versionA:$('#sA').checked, versionB:$('#sB').checked};
+}
+function summary() {
+  const r = NetCore.compile(D), box = $('#summary');
+  let h = '';
+  if (r.spec) {
+    const s = r.spec;
+    h += `<div class="stat"><b>Input</b><span>${escA(s.input.type === 'hashed' ? s.input.features.map(k => NetCore.FEATURE_LABEL[k]).join(', ') + ' → ' + fmt(s.input.dim) + ' slots' : fmt(s.input.dim) + ' slots, your own vectors')}</span>
+      <b>Layers</b><span>${escA(s.graph.map(g => g.kind === 'dense' ? `${g.units} ${g.act}` : g.kind === 'dropout' ? `dropout ${g.rate}` : g.kind === 'concat' ? 'join' : `softmax ${g.classes.length}`).join(' → '))}</span>
+      <b>Shape</b><span>${s.chain ? 'a chain (NetChain; our own code too)' : 'branches (NetGraph only)'}</span>
+      <b>Weights</b><span>${fmt(s.params)}</span></div>`;
+  }
+  h += r.errors.map(e => `<div class="err">${escA(e)}</div>`).join('') + (r.warnings || []).map(e => `<div class="warn">${escA(e)}</div>`).join('');
+  if (r.spec && !r.errors.length) h += `<div class="okline">Ready: Diagram → Code writes the notebook.</div>`;
+  box.innerHTML = h;
+  return r;
+}
+function generate() {
+  const r = summary();
+  if (!r.spec || r.errors.length) { $('#code').value = '(* The diagram is not complete yet:\n' + r.errors.map(e => '   ' + e).join('\n') + ' *)'; lastCells = null; return null; }
+  const set = settings();
+  if (!set.versionA && !set.versionB) { $('#code').value = '(* Choose version A, version B or both in the training settings. *)'; lastCells = null; return null; }
+  lastCells = NetCore.cells(D, r.spec, set);
+  $('#code').value = NetCore.plain(lastCells);
+  return lastCells;
+}
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+$('#bD2C').onclick = generate;
+$('#bNb').onclick = () => { const c = generate(); if (c) download((settings().name.replace(/[^\w-]+/g, '') || 'NetFromDiagram') + '.nb', NetCore.notebook(c), 'application/vnd.wolfram.mathematica'); };
+$('#bCopy').onclick = () => { const c = generate(); if (c && navigator.clipboard) navigator.clipboard.writeText($('#code').value); };
+['#sName', '#sData', '#sPath', '#sEpochs', '#sBatch', '#sSeed', '#sLr', '#sL2', '#sA', '#sB'].forEach(id => $(id).addEventListener('change', () => { save(); if (lastCells) generate(); }));
+
+/* ---------- toolbar ---------- */
+$('#bDel').onclick = delSel;
+$('#bUndo').onclick = doUndo;
+$('#bClear').onclick = () => { pushUndo(); D = {nodes:[], wires:[]}; select(null); };
+$('#bFit').onclick = fit;
+$('#bSave').onclick = () => download('net-diagram.json', JSON.stringify({diagram:D, settings:settings()}, null, 1), 'application/json');
+$('#bLoad').onclick = () => $('#file').click();
+$('#file').onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { try { const j = JSON.parse(t); pushUndo(); D = j.diagram || {nodes:[], wires:[]}; if (j.settings) putSettings(j.settings); select(null); fit(); } catch (err) { alert('Could not read that file: ' + err.message); } }); e.target.value = ''; };
+$('#bSvg').onclick = () => {
+  const s = sel; sel = null; render();
+  const clone = svg.cloneNode(true); clone.querySelectorAll('.port,.wire-hit,.grip,#temp').forEach(x => x.remove());
+  const bb = $('#world').getBBox(); clone.querySelector('#world').removeAttribute('transform');
+  const pad = 24; clone.setAttribute('viewBox', `${bb.x - pad} ${bb.y - pad} ${bb.width + 2 * pad} ${bb.height + 2 * pad + 18}`);
+  clone.setAttribute('width', bb.width + 2 * pad); clone.setAttribute('height', bb.height + 2 * pad + 18); clone.removeAttribute('id'); clone.removeAttribute('style');
+  const st = document.createElementNS(NS, 'style');
+  st.textContent = `.wire{fill:none;stroke:#73726c;stroke-width:1.4}.lbl{font:12px system-ui,sans-serif;text-anchor:middle;dominant-baseline:central;fill:#3d3d3a}.lblb{font:600 14px system-ui,sans-serif;dominant-baseline:central;fill:#2c2c2a}.fan{stroke-width:.7}`;
+  clone.insertBefore(st, clone.firstChild);
+  const c = document.createElementNS(NS, 'text'); c.setAttribute('x', bb.x + bb.width + pad - 4); c.setAttribute('y', bb.y + bb.height + 2 * pad + 10); c.setAttribute('text-anchor', 'end'); c.setAttribute('font-size', '10'); c.setAttribute('font-family', 'system-ui,sans-serif'); c.setAttribute('fill', '#6b665a');
+  c.textContent = 'By Dara O Shayda and Hikari Noor Hoshino (星野ヌール) · © Computational Classnotes · CC BY-NC-SA 4.0';
+  clone.appendChild(c);
+  download('net-diagram.svg', '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone), 'image/svg+xml');
+  sel = s; render();
+};
+
+/* ---------- the example: SubjectNet, as drawn in nets/SubjectNet.nb ---------- */
+function subjectNetDiagram() {
+  const nodes = [], wires = [];
+  NetCore.FEATURE_KEYS.forEach((k, i) => nodes.push({id:'f' + i, kind:'feature', key:k, x:100, y:60 + i * 44}));
+  nodes.push({id:'h', kind:'hash', nIn:5, slots:2048, x:240, y:148});
+  nodes.push({id:'s', kind:'slots', size:2048, x:330, y:148});
+  nodes.push({id:'d', kind:'dense', units:32, act:'ReLU', x:470, y:148});
+  nodes.push({id:'o', kind:'softmax', classes:'object, other', x:610, y:148});
+  NetCore.FEATURE_KEYS.forEach((k, i) => wires.push({id:'w' + i, from:{node:'f' + i, port:0}, to:{node:'h', port:i}}));
+  wires.push({id:'wh', from:{node:'h', port:0}, to:{node:'s', port:0}});
+  wires.push({id:'ws', from:{node:'s', port:0}, to:{node:'d', port:0}});
+  wires.push({id:'wd', from:{node:'d', port:0}, to:{node:'o', port:0}});
+  return {nodes, wires};
+}
+$('#bExample').onclick = () => { pushUndo(); D = subjectNetDiagram(); select(null); fit(); };
+
+/* ---------- persistence ---------- */
+const KEY = 'ccn-net-diagrams-v1';
+function putSettings(s) {
+  if (s.name != null) $('#sName').value = s.name; if (s.data) $('#sData').value = s.data; if (s.path) $('#sPath').value = s.path;
+  for (const [k, id] of [['epochs', '#sEpochs'], ['batch', '#sBatch'], ['seed', '#sSeed'], ['lr', '#sLr'], ['l2', '#sL2']]) if (s[k] != null) $(id).value = s[k];
+  if (s.versionA != null) $('#sA').checked = !!s.versionA; if (s.versionB != null) $('#sB').checked = !!s.versionB;
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify({D, settings:settings()})); } catch (_) {} }
+function load() { try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); if (j && j.D) { D = j.D; if (j.settings) putSettings(j.settings); return true; } } catch (_) {} return false; }
+
+if (!load() || !D.nodes.length) D = subjectNetDiagram();
+render(); inspector(); requestAnimationFrame(fit);
+window.addEventListener('resize', () => applyView());
+</script>
+</body>
+</html>
