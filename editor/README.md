@@ -10,11 +10,11 @@
 
 The page keeps the structure of the CCN String Diagrams editor (`lossofgenerality/ccn-string-diagrams`): the canvas, drawing wires from port to port, moving, zooming, panning, undo, the inspector, Save and Open as JSON, and Export SVG. The string-diagram mathematics is replaced by the elements of a net.
 
-## Shared with tensor-algebra-nets
+## Shared with monoid-algebra-nets
 
-`lossofgenerality/tensor-algebra-nets` shows this editor on its site, at `docs/net-diagrams.html`, by loading it from https://lossofgenerality.github.io/ccn-agent-free-form-language/editor/net-diagram-editor.html?example=tnparser.
+`lossofgenerality/monoid-algebra-nets` shows this editor on its site, at `docs/net-diagrams.html`, by loading it from https://lossofgenerality.github.io/ccn-agent-free-form-language/editor/net-diagram-editor.html?example=tnparser.
 
-**Opening on an example.** `?example=` followed by `subjectnet`, `ownet`, `tnparser`, `tnpolicy` or `tnvalue` opens the editor on that example. It also gives that page its own saved work in the browser, so a change made on the TensorNets page doesn't appear on this one, nor the other way round. Without it, the editor opens on SubjectNet, as on this project's site. A change pushed here therefore appears there at once; nothing needs copying. **Keep this file's name and place.** If it ever moves, change `EDITOR` in tensor-algebra-nets' `tools/units/build_glossary.py` and rebuild there.
+**Opening on an example.** `?example=` followed by `subjectnet`, `ownet`, `tnparser`, `tnpolicy` or `tnvalue` opens the editor on that example. It also gives that page its own saved work in the browser, so a change made on the TensorNets page doesn't appear on this one, nor the other way round. Without it, the editor opens on SubjectNet, as on this project's site. A change pushed here therefore appears there at once; nothing needs copying. **Keep this file's name and place.** If it ever moves, change `EDITOR` in monoid-algebra-nets' `tools/units/build_glossary.py` and rebuild there.
 
 ## The elements
 
@@ -34,7 +34,7 @@ The panel on the right reads the drawing as you work. It shows the input, the la
 
 ## Sequence nets: transformers
 
-The editor also draws the transformers of `lossofgenerality/tensor-algebra-nets`. They are added from **+ Sequence element…**:
+The editor also draws the transformers of `lossofgenerality/monoid-algebra-nets`. They are added from **+ Sequence element…**:
 
 | Element | What it is | Fields |
 |---|---|---|
@@ -67,7 +67,7 @@ They are drawn from the nets' definitions, in `tools/units/unit4.py` and `ff_ten
 **The count.** The panel gives the learnt weights, and the number Wolfram's `Information[net, "ArraysTotalElementCount"]` reports. That number also counts fixed arrays: sinusoidal positions (2 × d for each embedding) and the label-smoothing table (V × V).
 
 **The code.** Diagram → Code writes a Wolfram notebook with:
-- the parts (multi-head attention, feed-forward, layer normalisation, embeddings, encoder and decoder), as in tensor-algebra-nets;
+- the parts (multi-head attention, feed-forward, layer normalisation, embeddings, encoder and decoder), as in monoid-algebra-nets;
 - the net as a `NetGraph` of the drawing, with its input, output, target and loss ports;
 - a check of Wolfram's count against the drawing's;
 - a training cell for data of one's own, with the ports it expects.

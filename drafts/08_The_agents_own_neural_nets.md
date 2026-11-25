@@ -111,7 +111,7 @@ Training uses random starting weights, so a net trained in Wolfram and one train
 
 **Why the CPU is enough for now.** The nets are small: SubjectNet has 65,634 weights and trains on 2,000 examples. It trains in about 1 second in Wolfram and 0.2 to 0.8 seconds in Python. At this size a GPU would bring little; moving the data onto it would cancel most of the gain.
 
-**When a GPU would matter.** Nets like the full-size transformers of `lossofgenerality/tensor-algebra-nets`, which are millions of weights trained on large sets of examples.
+**When a GPU would matter.** Nets like the full-size transformers of `lossofgenerality/monoid-algebra-nets`, which are millions of weights trained on large sets of examples.
 
 **Open questions:**
 1. Which machine would train such nets: a cloud machine with an NVIDIA GPU, or the Wolfram Cloud?
