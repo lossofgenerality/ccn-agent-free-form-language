@@ -12,7 +12,7 @@ Two Wolfram functions have no Python equivalent and are written here:
     word matter, and Wolfram's dictionary gave exactly those (data/near_words.txt).
 
 By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)
-AI System Programming Group
+AI System Programming Laboratory
 
 © Computational Classnotes · CC BY-NC-SA 4.0
 """

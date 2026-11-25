@@ -433,6 +433,6 @@ NET  2048 hashed features → 32 ReLU → 2 softmax  ·  65,634 numbers
 ## 15. Credits, copyright and licence
 
 By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)
-AI System Programming Group
+AI System Programming Laboratory
 
 © Computational Classnotes · CC BY-NC-SA 4.0

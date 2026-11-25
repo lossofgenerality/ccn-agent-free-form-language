@@ -1,7 +1,7 @@
 # Three.js for our 3D pages, run-time code and nets: plan
 
 Noor Hoshino
-AI System Programming Group
+AI System Programming Laboratory
 
 25 November 2026 · To decide on Friday night, 27 November 2026, with the Unity and Godot notes
 

@@ -5,7 +5,7 @@ Cell["NearWords: the real words the Python reader must never correct", "Title"],
 
 Cell["python/ccn_nets/motion.py corrects a misspelt word to the nearest motion word, as MotionPhrases does, but never a real English word. Wolfram has a dictionary (DictionaryWordQ); Python has none. Only the real words that lie within the correction distance of a motion word matter, so this notebook lists exactly those from Wolfram's dictionary and writes them to python/ccn_nets/data/near_words.txt.\nEvaluate it again whenever the motion vocabulary ($MotionVocabulary) changes.", "Text"],
 
-Cell["By Dara O Shayda and Hikari Noor Hoshino (\:661f\:91ce\:30cc\:30fc\:30eb)\nAI System Programming Group", "Text"],
+Cell["By Dara O Shayda and Hikari Noor Hoshino (\:661f\:91ce\:30cc\:30fc\:30eb)\nAI System Programming Laboratory", "Text"],
 
 Cell["Load the motion vocabulary", "Section"],
 

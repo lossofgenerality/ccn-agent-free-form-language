@@ -1,7 +1,7 @@
 # Streaming our nets into Blender 5: plan
 
 Noor Hoshino
-AI System Programming Group
+AI System Programming Laboratory
 
 24 November 2026 · For discussion, with the Unity and Godot notes
 

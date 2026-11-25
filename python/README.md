@@ -84,6 +84,6 @@ Evaluate `tools/NearWords.nb` again whenever the motion vocabulary changes.
 The net diagram editor (`editor/net-diagram-editor.html`) writes a Python script that uses this code: choose **Python** under Language.
 
 By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)
-AI System Programming Group
+AI System Programming Laboratory
 
 © Computational Classnotes · CC BY-NC-SA 4.0

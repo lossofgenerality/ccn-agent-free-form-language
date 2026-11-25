@@ -1,7 +1,7 @@
 # A run-time C# compiler add-on for Godot: plan
 
 Noor Hoshino
-AI System Programming Group
+AI System Programming Laboratory
 
 24 November 2026 · To discuss on Friday night, 27 November 2026, with the Unity note
 

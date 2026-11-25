@@ -9,7 +9,7 @@ Cell["Load:  open this notebook and evaluate it (its cells are initialisation ce
 
 Cell["Use:   MotionReport[text]        how each part was read, what was assumed, what was set aside\nMotionFind[text]          the motion parts found in a longer text, and what was set aside\nMotionFormula[text]       each step as RotationTransform . TranslationTransform (inactive)\nMotionTransform[text, t]  the TransformationFunction at time t (0 to 1)\nMotionPlot[text]          snapshots along the motion;  MotionAnimate[text]", "Text"],
 
-Cell["By Dara O Shayda and Hikari Noor Hoshino (\:661f\:91ce\:30cc\:30fc\:30eb)\nAI System Programming Group", "Text"],
+Cell["By Dara O Shayda and Hikari Noor Hoshino (\:661f\:91ce\:30cc\:30fc\:30eb)\nAI System Programming Laboratory", "Text"],
 
 Cell["BeginPackage[\"MotionPhrases`\"];", "Code"],
 

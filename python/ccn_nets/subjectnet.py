@@ -8,7 +8,7 @@ training, and no conversational-construct labels anything.
     python3 -m ccn_nets.subjectnet          train, run the four tests and print the comparison
 
 By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)
-AI System Programming Group
+AI System Programming Laboratory
 
 © Computational Classnotes · CC BY-NC-SA 4.0
 """

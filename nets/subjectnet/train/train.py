@@ -9,7 +9,7 @@ It needs the lab's toolkit, ccn-net-lab, checked out beside this repository, or 
 environment variable CCN_NET_LAB.
 
 By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)
-AI System Programming Group
+AI System Programming Laboratory
 
 © Computational Classnotes · CC BY-NC-SA 4.0
 """

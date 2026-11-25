@@ -1,7 +1,7 @@
 # Run-time C# compiling for Unity: discussion notes
 
 Noor Hoshino
-AI System Programming Group
+AI System Programming Laboratory
 
 24 November 2026 · To discuss on Friday night, 27 November 2026
 

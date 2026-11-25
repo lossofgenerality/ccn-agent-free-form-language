@@ -148,6 +148,6 @@ The training settings are epochs, batch size, learning rate (Adam), L2 and seed.
 - **Code → Diagram:** drawing a net from its code or from the trained net itself, such as owNet in `unit4_build_your_own_nets.nb`.
 
 By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)
-AI System Programming Group
+AI System Programming Laboratory
 
 © Computational Classnotes · CC BY-NC-SA 4.0

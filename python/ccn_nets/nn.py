@@ -9,7 +9,7 @@ The arithmetic follows version A of nets/SubjectNet.nb step for step, so that a 
 same weights and given the same batches in the same order learns the same weights in both languages.
 
 By Dara O Shayda and Hikari Noor Hoshino (星野ヌール)
-AI System Programming Group
+AI System Programming Laboratory
 
 © Computational Classnotes · CC BY-NC-SA 4.0
 """
