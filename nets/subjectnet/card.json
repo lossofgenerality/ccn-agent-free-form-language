@@ -24,5 +24,11 @@
   "Test 1: templates with unseen words, accuracy",
   "Test 3: hard sentences, accuracy",
   "Test 4: paragraphs right step by step"
- ]
+ ],
+ "ta": {
+  "extra": [
+   "nets/SubjectNetReport.md",
+   "python/README.md"
+  ]
+ }
 }
