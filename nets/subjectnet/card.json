@@ -17,7 +17,8 @@
   "downloads": [
    "nets/SubjectNet.nb",
    "nets/SubjectNet_as_matrices.nb"
-  ]
+  ],
+  "guide": "nets/subjectnet/docs/guide.md"
  },
  "headline": [
   "Test 1: templates with unseen words, accuracy",
